@@ -1,0 +1,507 @@
+// Prisma Schema for Vista Travel Platform
+// Database: PostgreSQL (Google Cloud SQL)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USER & AUTHENTICATION
+// ============================================
+
+enum UserRole {
+  CLIENT
+  STAFF
+  ADMIN
+}
+
+model User {
+  id            String   @id @default(cuid())
+  username      String?  @unique
+  email         String   @unique
+  password      String   // Hashed password
+  firstName     String
+  lastName      String
+  phone         String?
+  avatar        String?
+  role          UserRole @default(CLIENT)
+  isActive      Boolean  @default(true)
+  isVerified    Boolean  @default(false)
+  
+  // Loyalty Program
+  loyaltyPoints Int      @default(0)
+  totalEarned   Int      @default(0)
+  totalRedeemed Int      @default(0)
+  memberSince   DateTime @default(now())
+  
+  // Timestamps
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  lastLoginAt   DateTime?
+  
+  // Relations
+  bookings      Booking[]
+  tickets       Ticket[]
+  notifications Notification[]
+  vouchers      UserVoucher[]
+  wishlist      WishlistItem[]
+  sessions      Session[]
+  supportTickets SupportTicket[]
+  supportMessages SupportTicketMessage[] @relation("MessageSender")
+  reviews       Review[]
+  
+  @@map("users")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token        String   @unique
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  
+  @@map("sessions")
+}
+
+// ============================================
+// FLIGHTS & AIRLINES
+// ============================================
+
+model Airline {
+  id          String   @id @default(cuid())
+  name        String
+  code        String   @unique // e.g., "P0", "SA", "ET"
+  logo        String?
+  basePrice   Int      // Base price multiplier
+  isActive    Boolean  @default(true)
+  flights     Flight[]
+  
+  @@map("airlines")
+}
+
+model Airport {
+  id          String   @id @default(cuid())
+  code        String   @unique // e.g., "LUN", "JNB"
+  name        String
+  city        String
+  country     String
+  isLocal     Boolean  @default(false) // Zambia airports
+  isActive    Boolean  @default(true)
+  
+  @@map("airports")
+}
+
+model Flight {
+  id              String   @id @default(cuid())
+  airlineId       String
+  airline         Airline  @relation(fields: [airlineId], references: [id])
+  flightNumber    String   // e.g., "P0 101"
+  fromAirportCode String
+  toAirportCode   String
+  departureTime   String   // e.g., "08:00"
+  arrivalTime     String   // e.g., "10:30"
+  duration        String   // e.g., "2h 30m"
+  basePrice       Int
+  stops           Int      @default(0)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  bookings        Booking[]
+  
+  @@map("flights")
+}
+
+// ============================================
+// DESTINATIONS & TOURS
+// ============================================
+
+model Destination {
+  id              String   @id @default(cuid())
+  title           String
+  location        String
+  image           String
+  rating          Float    @default(4.5)
+  reviews         Int      @default(0)
+  price           Int
+  childPrice      Int      @default(0)
+  maxGroupSize    Int      @default(15)
+  availableDates  String[] // ["2024-05-15", "2024-06-20"]
+  transportOptions Json?    // [{label: "Road", price: 0}, {label: "Flight", price: 250}]
+  accommodationOptions Json? // [{label: "Standard", priceAdjustment: 0}, {label: "Deluxe", priceAdjustment: 120}]
+  addOns          Json?    // [{label: "Excursion", price: 80}]
+  duration        String
+  description     String
+  mealPlan        String
+  tags            String[] // ["Beach", "Adventure"]
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  bookings        Booking[]
+  wishlistItems   WishlistItem[]
+  reviewList      Review[]
+  
+  @@map("destinations")
+}
+
+// ============================================
+// BOOKINGS
+// ============================================
+
+enum BookingType {
+  FLIGHT
+  TOUR
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+model Booking {
+  id              String       @id @default(cuid())
+  bookingId       String       @unique // e.g., "ET-2024-001"
+  type            BookingType
+  status          BookingStatus @default(PENDING)
+  
+  // User relation
+  userId          String
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Flight booking fields
+  flightId        String?
+  flight          Flight?      @relation(fields: [flightId], references: [id])
+  passengers      Int          @default(1)
+  flightClass     String?      @default("Economy")
+  seatNumbers     String[]     // ["12A", "12B"]
+  departureDate   String?
+  fromAirport     String?
+  toAirport       String?
+  fromCity        String?
+  toCity          String?
+  
+  // Tour booking fields
+  destinationId   String?
+  destination     Destination? @relation(fields: [destinationId], references: [id])
+  hotelName       String?
+  roomType        String?
+  guests          String?      // Formatted summary string
+  adults          Int          @default(1)
+  children        Int          @default(0)
+  transportType   String?      // "None", "Road", "Flight"
+  idType          String?      // "Passport", "National ID", etc.
+  idNumber        String?      // The actual ID number
+  guestId         String?      // Legacy field for tour identification
+  tourDate        String?
+  
+  // New flexible tour fields
+  selectedTransport     Json?
+  selectedAccommodation Json?
+  selectedAddOns        Json?
+  
+  // Common fields
+  totalAmount     Int
+  currency        String       @default("USD")
+  paymentStatus   String       @default("pending")
+  paymentMethod   String?
+  transactionId   String?
+  
+  // Timestamps
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  confirmedAt     DateTime?
+  cancelledAt     DateTime?
+  
+  // Relations
+  ticket          Ticket?
+  
+  @@map("bookings")
+}
+
+// ============================================
+// TICKETS
+// ============================================
+
+enum TicketStatus {
+  PENDING
+  CONFIRMED
+  USED
+  CANCELLED
+  EXPIRED
+}
+
+model Ticket {
+  id              String       @id @default(cuid())
+  ticketNumber    String       @unique
+  bookingId       String       @unique
+  booking         Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  
+  // Passenger info
+  passengerName   String
+  
+  // Flight ticket fields
+  fromAirport     String?
+  toAirport       String?
+  fromCity        String?
+  toCity          String?
+  flightCode      String?
+  departureDate   String?
+  departureTime   String?
+  seatNumber      String?
+  flightClass     String?
+  
+  // Tour ticket fields
+  hotelName       String?
+  roomType        String?
+  guests          String?
+  adults          Int          @default(1)
+  children        Int          @default(0)
+  transportType   String?
+  idType          String?
+  idNumber        String?
+  duration        String?
+  includedItems   String[]     // ["Breakfast", "Transfer"]
+  
+  // New flexible tour fields
+  selectedTransport     Json?
+  selectedAccommodation Json?
+  selectedAddOns        Json?
+  
+  // Status
+  status          TicketStatus @default(CONFIRMED)
+  isViewed        Boolean      @default(false)
+  
+  // Timestamps
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  usedAt          DateTime?
+  cancelledAt     DateTime?
+  
+  // User relation for quick access
+  userId          String
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("tickets")
+}
+
+// ============================================
+// NOTIFICATIONS
+// ============================================
+
+enum NotificationType {
+  BOOKING
+  OFFER
+  PAYMENT
+  SYSTEM
+}
+
+model Notification {
+  id            String           @id @default(cuid())
+  userId        String
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type          NotificationType
+  title         String
+  message       String
+  fullMessage   String?
+  isRead        Boolean          @default(false)
+  
+  // Related item reference
+  relatedId     String?
+  relatedType   String?          // "ticket", "voucher", "destination"
+  
+  createdAt     DateTime         @default(now())
+  readAt        DateTime?
+  
+  @@map("notifications")
+}
+
+// ============================================
+// VOUCHERS & DISCOUNTS
+// ============================================
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED
+}
+
+enum VoucherApplicableTo {
+  FLIGHTS
+  TOURS
+  ALL
+}
+
+model Voucher {
+  id              String            @id @default(cuid())
+  code            String            @unique
+  title           String
+  description     String
+  discountType    DiscountType
+  discountValue   Int               // 20 for 20%, or 50 for $50
+  minPurchase     Int               @default(0)
+  maxDiscount     Int?              // Max discount amount
+  validFrom       DateTime
+  validUntil      DateTime
+  applicableTo    VoucherApplicableTo
+  isActive        Boolean           @default(true)
+  usageLimit      Int?              // Max times it can be used
+  usageCount      Int               @default(0)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  
+  userVouchers    UserVoucher[]
+  
+  @@map("vouchers")
+}
+
+model UserVoucher {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  voucherId   String
+  voucher     Voucher  @relation(fields: [voucherId], references: [id])
+  status      String   @default("active") // active, used, expired
+  usedAt      DateTime?
+  usedOnBooking String?
+  createdAt   DateTime @default(now())
+  
+  @@unique([userId, voucherId])
+  @@map("user_vouchers")
+}
+
+// ============================================
+// WISHLIST
+// ============================================
+
+model WishlistItem {
+  id             String      @id @default(cuid())
+  userId         String
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  destinationId  String
+  destination    Destination @relation(fields: [destinationId], references: [id])
+  createdAt      DateTime    @default(now())
+  
+  @@unique([userId, destinationId])
+  @@map("wishlist_items")
+}
+
+// ============================================
+// CONTACT MESSAGES
+// ============================================
+
+model ContactMessage {
+  id          String   @id @default(cuid())
+  firstName   String
+  lastName    String
+  email       String
+  phone       String?
+  subject     String
+  message     String
+  isRead      Boolean  @default(false)
+  isReplied   Boolean  @default(false)
+  repliedAt   DateTime?
+  replyMessage String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("contact_messages")
+}
+
+// ============================================
+// SUPPORT TICKETS
+// ============================================
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum SupportTicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+model SupportTicket {
+  id          String              @id @default(cuid())
+  ticketId    String              @unique // e.g., "TKT-123456"
+  subject     String
+  status      SupportTicketStatus @default(OPEN)
+  priority    TicketPriority      @default(LOW)
+  
+  // Relations
+  userId      String
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages    SupportTicketMessage[]
+  
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  resolvedAt  DateTime?
+  
+  @@map("support_tickets")
+}
+
+model SupportTicketMessage {
+  id          String        @id @default(cuid())
+  ticketId    String
+  ticket      SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  
+  senderId    String
+  sender      User          @relation("MessageSender", fields: [senderId], references: [id])
+  
+  message     String
+  isRead      Boolean       @default(false)
+  
+  createdAt   DateTime      @default(now())
+  
+  @@map("support_ticket_messages")
+}
+
+// ============================================
+// REVIEWS
+// ============================================
+
+model Review {
+  id            String      @id @default(cuid())
+  rating        Int         // 1-5
+  title         String
+  content       String
+  status        String      @default("PENDING") // PENDING, APPROVED, REJECTED
+  
+  // Relations
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  destinationId String?
+  destination   Destination? @relation(fields: [destinationId], references: [id])
+  
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@map("reviews")
+}
+
+// ============================================
+// SYSTEM SETTINGS
+// ============================================
+
+model SystemSetting {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+  
+  @@map("system_settings")
+}

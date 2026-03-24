@@ -1,0 +1,9 @@
+$ bun prisma/seed.ts
+🌱 Seeding database...
+✅ Created admin user: admin@vista.travel
+✅ Created 4 airlines
+✅ Created 6 airports
+✅ Created 6 destinations
+✅ Created 3 vouchers
+✅ Created system settings
+🎉 Seeding completed successfully!
