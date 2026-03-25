@@ -66,6 +66,9 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { Book } from "lucide-react";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
+import { PrintableTicket } from "@/components/booking/PrintableTicket";
 import BookingModal from "@/components/booking/BookingModal"
 import CurrencySelector from "@/components/CurrencySelector";
 
@@ -96,6 +99,7 @@ import {
 } from "@/components/ui/accordion";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useTheme } from "next-themes";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -377,10 +381,10 @@ const popularRoutes = [
 
 // Navigation Component
 export function Navigation() {
-  const { currentPage, setPage, tickets, notifications, unreadNotificationCount, markAllNotificationsRead, deleteAllNotifications, markNotificationRead, setAdminSection, markTicketViewed, markAllTicketsViewed, wishlist, addNotification } = useVistaStore();
+  const { currentPage, setPage, tickets, viewedTicketIds, notifications, unreadNotificationCount, markAllNotificationsRead, deleteAllNotifications, markNotificationRead, setAdminSection, markTicketViewed, markAllTicketsViewed, wishlist, addNotification } = useVistaStore();
 
-  // Count unviewed, non-cancelled tickets
-  const unviewedTicketsCount = tickets.filter(t => !t.isViewed && t.status !== "cancelled").length;
+  // Count unviewed, non-cancelled tickets using persistent viewedTicketIds
+  const unviewedTicketsCount = tickets.filter(t => !viewedTicketIds.includes(t.id) && t.status !== "cancelled").length;
   const { isAuthenticated, user, logout } = useAuthStore();
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -476,7 +480,7 @@ export function Navigation() {
                 <div className="flex items-center space-x-2">
                   <button
                     onClick={() => setPage("tickets")}
-                    className="relative text-white hover:text-emerald-400 transition-colors p-1"
+                    className="relative text-white hover:text-emerald-400 transition-colors p-1 hidden md:block"
                   >
                     <Ticket className="w-5 h-5" />
                     {unviewedTicketsCount > 0 && (
@@ -525,7 +529,7 @@ export function Navigation() {
                                     notification.type === "booking" && "bg-emerald-500",
                                     notification.type === "offer" && "bg-blue-500",
                                     notification.type === "payment" && "bg-amber-500",
-                                    notification.type === "system" && "bg-gray-500",
+                                    notification.type === "system" && "bg-muted/30",
                                     notification.isRead && "opacity-50"
                                   )}></div>
                                   <div className="flex-1 min-w-0">
@@ -577,7 +581,7 @@ export function Navigation() {
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
                             className="text-center text-emerald-600 font-medium cursor-pointer"
-                            onClick={() => {
+                            onSelect={() => {
                               setPage("admin");
                               setAdminSection("notifications");
                             }}
@@ -598,7 +602,7 @@ export function Navigation() {
                 {/* User Dropdown with Avatar */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button className="flex items-center gap-2 text-white hover:text-emerald-400 transition-colors py-1 px-2 rounded-full hover:bg-white/10">
+                    <button className="flex items-center gap-2 text-white hover:text-emerald-400 transition-colors py-1 px-2 rounded-full hover:bg-card/10">
                       <Avatar className="w-8 h-8 border-2 border-emerald-500">
                         <AvatarImage src={user?.avatar} alt={user?.firstName} />
                         <AvatarFallback className="bg-emerald-600 text-white text-xs font-semibold">
@@ -616,14 +620,14 @@ export function Navigation() {
                         <p className="text-xs text-muted-foreground">{user?.email}</p>
                       </div>
                     </DropdownMenuLabel>
-                    <DropdownMenuItem onClick={() => {
+                    <DropdownMenuItem onSelect={() => {
                       setPage("admin");
                       setAdminSection("profile");
                     }}>
                       <User className="w-4 h-4 mr-2" />
                       Profile
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => {
+                    <DropdownMenuItem onSelect={() => {
                       setPage("admin");
                       setAdminSection("settings");
                     }}>
@@ -674,70 +678,77 @@ export function Navigation() {
 
         {/* Mobile Menu */}
         {mobileMenuOpen && (
-          <div
-            className="md:hidden mt-4 pb-4 border-t border-white/20 pt-4"
-          >
-            <div className="flex flex-col space-y-3">
-              {navItems.map((item) => (
-                <button
-                  key={item.page}
-                  onClick={() => {
-                    setPage(item.page);
-                    setMobileMenuOpen(false);
-                  }}
-                  className={cn(
-                    "text-left text-white/90 hover:text-emerald-400 transition-colors py-2",
-                    currentPage === item.page && "text-emerald-400"
-                  )}
-                >
-                  {item.label}
-                </button>
-              ))}
-              {/* Auth section in mobile menu */}
-              {isAuthenticated ? (
-                <div className="pt-2 border-t border-white/20">
-                  {/* User info with Avatar */}
-                  <div className="flex items-center justify-between py-2">
-                    <div className="flex items-center gap-2">
-                      <Avatar className="w-9 h-9 border-2 border-emerald-500">
-                        <AvatarImage src={user?.avatar} alt={user?.firstName} />
-                        <AvatarFallback className="bg-emerald-600 text-white text-xs font-semibold">
-                          {user?.firstName?.charAt(0)}{user?.lastName?.charAt(0)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <span className="text-white text-sm font-medium">{user?.firstName} {user?.lastName}</span>
-                        <p className="text-white/60 text-xs">{user?.email}</p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => {
-                        handleLogout();
-                        setMobileMenuOpen(false);
-                      }}
-                      className="flex items-center gap-1 text-red-400 hover:text-red-300 text-sm bg-white/10 px-3 py-1.5 rounded-full"
-                    >
-                      <LogOut className="w-4 h-4" />
-                      Logout
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="pt-2 border-t border-white/20">
-                  <Button
+          <>
+            {/* Backdrop for click-outside closure */}
+            <div 
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[-1] md:hidden" 
+              onClick={() => setMobileMenuOpen(false)}
+            />
+            <div
+              className="md:hidden mt-4 pb-4 border-t border-white/20 pt-4"
+            >
+              <div className="flex flex-col space-y-3">
+                {navItems.map((item) => (
+                  <button
+                    key={item.page}
                     onClick={() => {
-                      setLoginModalOpen(true);
+                      setPage(item.page);
                       setMobileMenuOpen(false);
                     }}
-                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-full font-semibold"
+                    className={cn(
+                      "text-left text-white/90 hover:text-emerald-400 transition-colors py-2",
+                      currentPage === item.page && "text-emerald-400"
+                    )}
                   >
-                    <LogIn className="w-4 h-4 mr-2" />
-                    Sign In
-                  </Button>
-                </div>
-              )}
+                    {item.label}
+                  </button>
+                ))}
+                {/* Auth section in mobile menu */}
+                {isAuthenticated ? (
+                  <div className="pt-2 border-t border-white/20">
+                    {/* User info with Avatar */}
+                    <div className="flex items-center justify-between py-2">
+                      <div className="flex items-center gap-2">
+                        <Avatar className="w-9 h-9 border-2 border-emerald-500">
+                          <AvatarImage src={user?.avatar} alt={user?.firstName} />
+                          <AvatarFallback className="bg-emerald-600 text-white text-xs font-semibold">
+                            {user?.firstName?.charAt(0)}{user?.lastName?.charAt(0)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <span className="text-white text-sm font-medium">{user?.firstName} {user?.lastName}</span>
+                          <p className="text-white/60 text-xs">{user?.email}</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          handleLogout();
+                          setMobileMenuOpen(false);
+                        }}
+                        className="flex items-center gap-1 text-red-400 hover:text-red-300 text-sm bg-card/10 px-3 py-1.5 rounded-full"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        Logout
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="pt-2 border-t border-white/20">
+                    <Button
+                      onClick={() => {
+                        setLoginModalOpen(true);
+                        setMobileMenuOpen(false);
+                      }}
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-full font-semibold"
+                    >
+                      <LogIn className="w-4 h-4 mr-2" />
+                      Sign In
+                    </Button>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          </>
         )}
       </div>
 
@@ -783,14 +794,14 @@ function HeroSection() {
           <Button
             onClick={() => setPage("flights")}
             variant="outline"
-            className="bg-white/10 hover:bg-white/20 backdrop-blur-sm text-white px-8 py-4 rounded-full font-semibold text-lg border border-white/30"
+            className="bg-card/10 hover:bg-card/20 backdrop-blur-sm text-white px-8 py-4 rounded-full font-semibold text-lg border border-white/30"
           >
             Book Flights
           </Button>
           <Button
             onClick={() => setPage("contact")}
             variant="outline"
-            className="bg-white/10 hover:bg-white/20 backdrop-blur-sm text-white px-8 py-4 rounded-full font-semibold text-lg border border-white/30"
+            className="bg-card/10 hover:bg-card/20 backdrop-blur-sm text-white px-8 py-4 rounded-full font-semibold text-lg border border-white/30"
           >
             Contact Us
           </Button>
@@ -810,7 +821,7 @@ function StatsSection() {
   ];
 
   return (
-    <section className="py-12 bg-white">
+    <section className="py-12 bg-background border-y border-border">
       <div className="max-w-7xl mx-auto px-6 grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
         {stats.map((stat, index) => (
           <div
@@ -831,13 +842,14 @@ function StatsSection() {
 
 // Featured Destinations
 function FeaturedDestinations() {
-  const { setPage, setSelectedDestination } = useVistaStore();
+  const { setPage, setSelectedDestination, convertFromUSD, currency: activeCurrency } = useVistaStore();
+  const currencySymbol = activeCurrency === "USD" ? "$" : activeCurrency === "EUR" ? "€" : activeCurrency === "GBP" ? "£" : activeCurrency === "ZMW" ? "ZK" : "R";
   const featured = destinations.slice(0, 3);
 
   return (
     <section className="py-20 px-6 max-w-7xl mx-auto">
       <div className="text-center mb-12">
-        <h2 className="text-4xl md:text-5xl font-bold mb-4 text-stone-900 font-serif">
+        <h2 className="text-4xl md:text-5xl font-bold mb-4 text-foreground font-serif">
           Popular Destinations
         </h2>
         <p className="text-gray-500">
@@ -871,8 +883,8 @@ function FeaturedDestinations() {
               </div>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-xl font-bold text-stone-900">
-                ${dest.price.toLocaleString()}
+              <span className="text-xl font-bold text-foreground">
+                {currencySymbol}{convertFromUSD(dest.price).toLocaleString()}
               </span>
               <span className="text-sm text-gray-500">{dest.duration}</span>
               <div>
@@ -909,7 +921,8 @@ function HomePage() {
 
 // Flights Page
 function FlightsPage() {
-  const { tripType, setTripType, flightType, setFlightType } = useVistaStore();
+  const { tripType, setTripType, flightType, setFlightType, convertFromUSD, currency: activeCurrency } = useVistaStore();
+  const currencySymbol = activeCurrency === "USD" ? "$" : activeCurrency === "EUR" ? "€" : activeCurrency === "GBP" ? "£" : activeCurrency === "ZMW" ? "ZK" : "R";
   const { isAuthenticated } = useAuthStore();
   const [fromAirport, setFromAirport] = useState("LUN");
   const [toAirport, setToAirport] = useState("LVI");
@@ -997,7 +1010,7 @@ function FlightsPage() {
 
       {/* Search Box */}
       <div className="max-w-7xl mx-auto px-6 py-12">
-        <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-5xl mx-auto -mt-16 relative z-10">
+        <div className="bg-card rounded-3xl shadow-2xl p-8 max-w-5xl mx-auto -mt-16 relative z-10 border border-border">
           {/* Trip Type Tabs */}
           <div className="flex justify-center mb-8">
             <div className="bg-stone-100 rounded-full p-1.5 inline-flex">
@@ -1050,7 +1063,7 @@ function FlightsPage() {
                 From
               </Label>
               <Select value={fromAirport} onValueChange={setFromAirport}>
-                <SelectTrigger className="w-full bg-stone-50 border-gray-200">
+                <SelectTrigger className="w-full bg-muted/30 border-gray-200">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1078,7 +1091,7 @@ function FlightsPage() {
                 To
               </Label>
               <Select value={toAirport} onValueChange={setToAirport}>
-                <SelectTrigger className="w-full bg-stone-50 border-gray-200">
+                <SelectTrigger className="w-full bg-muted/30 border-gray-200">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1099,7 +1112,7 @@ function FlightsPage() {
                 type="date"
                 value={departureDate}
                 onChange={(e) => setDepartureDate(e.target.value)}
-                className="w-full bg-stone-50 border-gray-200"
+                className="w-full bg-muted/30 border-gray-200"
               />
             </div>
 
@@ -1108,7 +1121,7 @@ function FlightsPage() {
                 Passengers
               </Label>
               <Select value={passengers} onValueChange={setPassengers}>
-                <SelectTrigger className="w-full bg-stone-50 border-gray-200">
+                <SelectTrigger className="w-full bg-muted/30 border-gray-200">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1132,7 +1145,7 @@ function FlightsPage() {
                   type="date"
                   value={returnDate}
                   onChange={(e) => setReturnDate(e.target.value)}
-                  className="w-full bg-stone-50 border-gray-200"
+                  className="w-full bg-muted/30 border-gray-200"
                 />
               </div>
             </div>
@@ -1167,14 +1180,14 @@ function FlightsPage() {
         {showResults && (
           <div className="max-w-5xl mx-auto mt-12">
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-bold text-stone-900 flex items-center gap-2">
+              <h3 className="text-xl font-bold text-foreground flex items-center gap-2">
                 <Plane className="w-5 h-5 text-emerald-600" />
                 Available Flights
               </h3>
               <div className="flex items-center space-x-2">
                 <span className="text-sm text-gray-500">Sort by:</span>
                 <Select defaultValue="price">
-                  <SelectTrigger className="w-40 bg-white border-gray-200">
+                  <SelectTrigger className="w-40 bg-card border-gray-200">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1190,7 +1203,7 @@ function FlightsPage() {
               {searchResults.map((flight) => (
                 <div
                   key={flight.id}
-                  className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 hover:shadow-xl transition-all"
+                  className="bg-card rounded-2xl shadow-lg p-6 border border-border hover:shadow-xl transition-all"
                 >
                   <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                     <div className="flex items-center space-x-4">
@@ -1198,7 +1211,7 @@ function FlightsPage() {
                         <Plane className="w-5 h-5 text-emerald-600" />
                       </div>
                       <div>
-                        <p className="font-bold text-stone-900">
+                        <p className="font-bold text-foreground">
                           {flight.airline}
                         </p>
                         <p className="text-sm text-gray-500">{flight.code}</p>
@@ -1207,7 +1220,7 @@ function FlightsPage() {
 
                     <div className="flex items-center space-x-8">
                       <div className="text-center">
-                        <p className="text-2xl font-bold text-stone-900">
+                        <p className="text-2xl font-bold text-foreground">
                           {flight.departTime}
                         </p>
                         <p className="text-sm text-gray-500">{flight.from}</p>
@@ -1222,7 +1235,7 @@ function FlightsPage() {
                         <p className="text-xs text-gray-400 mt-1">Direct</p>
                       </div>
                       <div className="text-center">
-                        <p className="text-2xl font-bold text-stone-900">
+                        <p className="text-2xl font-bold text-foreground">
                           {flight.arriveTime}
                         </p>
                         <p className="text-sm text-gray-500">{flight.to}</p>
@@ -1231,7 +1244,7 @@ function FlightsPage() {
 
                     <div className="text-center lg:text-right">
                       <p className="text-2xl font-bold text-emerald-600">
-                        ${flight.price}
+                        {currencySymbol}{convertFromUSD(flight.price).toLocaleString()}
                       </p>
                       <p className="text-xs text-gray-400">per person</p>
                     </div>
@@ -1262,14 +1275,14 @@ function FlightsPage() {
 
         {/* Popular Routes */}
         <div className="mt-20">
-          <h3 className="text-2xl font-bold text-stone-900 mb-8">
+          <h3 className="text-2xl font-bold text-foreground mb-8">
             Popular Routes from Zambia
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {popularRoutes.map((route, index) => (
               <div
                 key={index}
-                className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all cursor-pointer"
+                className="bg-card rounded-2xl shadow-lg p-6 border border-border hover:shadow-xl transition-all cursor-pointer"
                 onClick={() => {
                   setFromAirport(route.from);
                   setToAirport(route.to);
@@ -1278,21 +1291,21 @@ function FlightsPage() {
               >
                 <div className="flex items-center justify-between mb-4">
                   <div className="text-center">
-                    <p className="text-2xl font-bold text-stone-900">
+                    <p className="text-2xl font-bold text-foreground">
                       {route.from}
                     </p>
                     <p className="text-sm text-gray-500">{route.fromCity}</p>
                   </div>
                   <ArrowRight className="w-4 h-4 text-emerald-600" />
                   <div className="text-center">
-                    <p className="text-2xl font-bold text-stone-900">
+                    <p className="text-2xl font-bold text-foreground">
                       {route.to}
                     </p>
                     <p className="text-sm text-gray-500">{route.toCity}</p>
                   </div>
                 </div>
                 <p className="text-emerald-600 font-bold text-lg">
-                  From ${route.price}
+                  From {currencySymbol}{convertFromUSD(route.price).toLocaleString()}
                 </p>
                 <p className="text-sm text-gray-500">
                   {route.duration} • {route.stops === 0 ? "Direct" : "1 Stop"}
@@ -1313,7 +1326,8 @@ function FlightsPage() {
 
 // Destinations Page
 function DestinationsPage() {
-  const { setSelectedDestination, wishlist, toggleWishlist, setWishlist } = useVistaStore();
+  const { setSelectedDestination, wishlist, toggleWishlist, setWishlist, convertFromUSD, currency: activeCurrency } = useVistaStore();
+  const currencySymbol = activeCurrency === "USD" ? "$" : activeCurrency === "EUR" ? "€" : activeCurrency === "GBP" ? "£" : activeCurrency === "ZMW" ? "ZK" : "R";
   const { isAuthenticated, user } = useAuthStore();
   const [filter, setFilter] = useState("all");
   const [destinationModalOpen, setDestinationModalOpen] = useState(false);
@@ -1426,7 +1440,7 @@ function DestinationsPage() {
 
       <div className="max-w-7xl mx-auto px-6 py-12">
         {/* Filters */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
+        <div className="bg-card rounded-2xl shadow-lg p-6 mb-8 border border-border">
           <div className="flex flex-wrap gap-4 items-center justify-between">
             <div className="flex flex-wrap gap-2">
               {filters.map((f) => (
@@ -1447,10 +1461,10 @@ function DestinationsPage() {
             <div className="flex items-center space-x-2">
               <Input
                 placeholder="Search destinations..."
-                className="w-48 bg-stone-50 border-gray-200"
+                className="w-48 bg-muted/30 border-gray-200"
               />
               <Select>
-                <SelectTrigger className="w-36 bg-stone-50 border-gray-200">
+                <SelectTrigger className="w-36 bg-muted/30 border-gray-200">
                   <SelectValue placeholder="All Prices" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1470,7 +1484,7 @@ function DestinationsPage() {
           {filteredDestinations.map((dest, index) => (
             <div
               key={dest.id}
-              className="group bg-white rounded-3xl shadow-lg overflow-hidden hover:shadow-2xl transition-all cursor-pointer"
+              className="group bg-card rounded-3xl shadow-lg overflow-hidden border border-border hover:shadow-xl transition-all cursor-pointer"
               onClick={() => openDestinationModal(dest)}
             >
               <div className="relative h-64 overflow-hidden">
@@ -1491,7 +1505,7 @@ function DestinationsPage() {
                         "w-10 h-10 rounded-full flex items-center justify-center transition-colors",
                         isWishlisted(dest.id)
                           ? "bg-red-500 text-white"
-                          : "bg-white/90 hover:bg-red-500 hover:text-white"
+                          : "bg-card/90 hover:bg-red-500 hover:text-white"
                       )}
                       onClick={(e) => handleToggleWishlist(e, dest)}
                     >
@@ -1505,7 +1519,7 @@ function DestinationsPage() {
               </div>
               <div className="p-6">
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-xl font-bold text-stone-900">
+                  <h3 className="text-xl font-bold text-foreground">
                     {dest.title}
                   </h3>
                   <div className="flex items-center text-yellow-500">
@@ -1522,7 +1536,7 @@ function DestinationsPage() {
                   <div>
                     <span className="text-gray-400 text-xs">From</span>
                     <p className="text-2xl font-bold text-emerald-600">
-                      ${dest.price.toLocaleString()}
+                      {currencySymbol}{convertFromUSD(dest.price).toLocaleString()}
                     </p>
                   </div>
                   <div className="text-right">
@@ -1531,7 +1545,7 @@ function DestinationsPage() {
                   </div>
                 </div>
                 <div className="flex gap-3 mt-4">
-                  <Button className="flex-1 bg-white border border-gray-200 text-stone-900 py-3 rounded-xl font-semibold">
+                  <Button className="flex-1 bg-card border border-border text-foreground py-3 rounded-xl font-semibold hover:bg-muted">
                     View Details
                   </Button>
                   <BookingModal
@@ -1569,7 +1583,7 @@ function DestinationsPage() {
               <div className="space-y-4 mt-4">
                 <div className="flex justify-between items-start">
                   <div>
-                    <h2 className="text-3xl font-bold text-stone-900 font-serif">
+                    <h2 className="text-3xl font-bold text-foreground font-serif">
                       {selectedDest.title}
                     </h2>
                     <div className="flex items-center text-yellow-500 mt-2">
@@ -1585,7 +1599,7 @@ function DestinationsPage() {
                   <div className="text-right">
                     <p className="text-gray-400 text-sm">From</p>
                     <p className="text-3xl font-bold text-emerald-600">
-                      ${selectedDest.price.toLocaleString()}
+                      {currencySymbol}{convertFromUSD(selectedDest.price).toLocaleString()}
                     </p>
                   </div>
                 </div>
@@ -1593,22 +1607,22 @@ function DestinationsPage() {
                 <p className="text-gray-600">{selectedDest.description}</p>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="text-center p-4 bg-stone-50 rounded-xl">
+                  <div className="text-center p-4 bg-muted/30 rounded-xl">
                     <Calendar className="w-6 h-6 text-emerald-600 mx-auto mb-2" />
                     <p className="font-semibold">{selectedDest.duration}</p>
                     <p className="text-xs text-gray-400">Duration</p>
                   </div>
-                  <div className="text-center p-4 bg-stone-50 rounded-xl">
+                  <div className="text-center p-4 bg-muted/30 rounded-xl">
                     <Users className="w-6 h-6 text-emerald-600 mx-auto mb-2" />
                     <p className="font-semibold">Group</p>
                     <p className="text-xs text-gray-400">Type</p>
                   </div>
-                  <div className="text-center p-4 bg-stone-50 rounded-xl">
+                  <div className="text-center p-4 bg-muted/30 rounded-xl">
                     <Utensils className="w-6 h-6 text-emerald-600 mx-auto mb-2" />
                     <p className="font-semibold">Meals</p>
                     <p className="text-xs text-gray-400">Included</p>
                   </div>
-                  <div className="text-center p-4 bg-stone-50 rounded-xl">
+                  <div className="text-center p-4 bg-muted/30 rounded-xl">
                     <Hotel className="w-6 h-6 text-emerald-600 mx-auto mb-2" />
                     <p className="font-semibold">Hotel</p>
                     <p className="text-xs text-gray-400">4-5 Star</p>
@@ -1720,7 +1734,7 @@ function ContactPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
           {/* Contact Form */}
           <Card className="rounded-3xl shadow-xl p-8 lg:p-12 border-0">
-            <h2 className="text-3xl font-bold mb-2 text-stone-900">
+            <h2 className="text-3xl font-bold mb-2 text-foreground">
               Send us a Message
             </h2>
             <p className="text-gray-500 mb-8">We'll respond within 24 hours</p>
@@ -1733,7 +1747,7 @@ function ContactPage() {
                   </Label>
                   <Input
                     required
-                    className="bg-stone-50 border-gray-200 rounded-xl"
+                    className="bg-muted/30 border-gray-200 rounded-xl"
                   />
                 </div>
                 <div>
@@ -1742,7 +1756,7 @@ function ContactPage() {
                   </Label>
                   <Input
                     required
-                    className="bg-stone-50 border-gray-200 rounded-xl"
+                    className="bg-muted/30 border-gray-200 rounded-xl"
                   />
                 </div>
               </div>
@@ -1755,7 +1769,7 @@ function ContactPage() {
                   <Input
                     type="email"
                     required
-                    className="bg-stone-50 border-gray-200 rounded-xl"
+                    className="bg-muted/30 border-gray-200 rounded-xl"
                   />
                 </div>
                 <div>
@@ -1764,7 +1778,7 @@ function ContactPage() {
                   </Label>
                   <Input
                     type="tel"
-                    className="bg-stone-50 border-gray-200 rounded-xl"
+                    className="bg-muted/30 border-gray-200 rounded-xl"
                   />
                 </div>
               </div>
@@ -1774,7 +1788,7 @@ function ContactPage() {
                   Subject *
                 </Label>
                 <Select required>
-                  <SelectTrigger className="bg-stone-50 border-gray-200 rounded-xl">
+                  <SelectTrigger className="bg-muted/30 border-gray-200 rounded-xl">
                     <SelectValue placeholder="Select a subject" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1797,7 +1811,7 @@ function ContactPage() {
                 <Textarea
                   required
                   rows={5}
-                  className="bg-stone-50 border-gray-200 rounded-xl resize-none"
+                  className="bg-muted/30 border-gray-200 rounded-xl resize-none"
                   placeholder="Tell us how we can help you..."
                 />
               </div>
@@ -1835,7 +1849,7 @@ function ContactPage() {
           <div className="space-y-8">
             {/* Contact Cards */}
             <Card className="rounded-3xl shadow-xl p-8 border-0">
-              <h3 className="text-2xl font-bold mb-6 text-stone-900">
+              <h3 className="text-2xl font-bold mb-6 text-foreground">
                 Contact Information
               </h3>
 
@@ -1845,7 +1859,7 @@ function ContactPage() {
                     <MapPin className="w-5 h-5 text-emerald-600" />
                   </div>
                   <div>
-                    <h4 className="font-semibold text-stone-900 mb-1">
+                    <h4 className="font-semibold text-foreground mb-1">
                       Our Office
                     </h4>
                     <p className="text-gray-600">
@@ -1861,7 +1875,7 @@ function ContactPage() {
                     <Phone className="w-5 h-5 text-emerald-600" />
                   </div>
                   <div>
-                    <h4 className="font-semibold text-stone-900 mb-1">Phone</h4>
+                    <h4 className="font-semibold text-foreground mb-1">Phone</h4>
                     <p className="text-gray-600">
                       +260 211 123 456
                       <br />
@@ -1875,7 +1889,7 @@ function ContactPage() {
                     <Mail className="w-5 h-5 text-emerald-600" />
                   </div>
                   <div>
-                    <h4 className="font-semibold text-stone-900 mb-1">Email</h4>
+                    <h4 className="font-semibold text-foreground mb-1">Email</h4>
                     <p className="text-gray-600">
                       info@vista-travel.com
                       <br />
@@ -1889,7 +1903,7 @@ function ContactPage() {
                     <Clock className="w-5 h-5 text-emerald-600" />
                   </div>
                   <div>
-                    <h4 className="font-semibold text-stone-900 mb-1">
+                    <h4 className="font-semibold text-foreground mb-1">
                       Business Hours
                     </h4>
                     <p className="text-gray-600">
@@ -1913,7 +1927,7 @@ function ContactPage() {
                   className="w-full h-full object-cover"
                 />
                 <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
-                  <Button className="bg-white text-stone-900 hover:bg-emerald-500 hover:text-white rounded-full font-semibold">
+                  <Button className="bg-card text-foreground border border-border hover:bg-emerald-500 hover:text-white rounded-full font-semibold">
                     <MapPin className="w-4 h-4 mr-2" />
                     View on Google Maps
                   </Button>
@@ -1923,7 +1937,7 @@ function ContactPage() {
 
             {/* Social Media */}
             <Card className="rounded-3xl shadow-xl p-8 border-0">
-              <h3 className="text-2xl font-bold mb-6 text-stone-900">
+              <h3 className="text-2xl font-bold mb-6 text-foreground">
                 Follow Us
               </h3>
               <div className="flex space-x-4">
@@ -1944,9 +1958,9 @@ function ContactPage() {
       </div>
 
       {/* FAQ Section */}
-      <div className="bg-emerald-50 py-20">
+        <div className="bg-muted/20 py-20">
         <div className="max-w-4xl mx-auto px-6">
-          <h2 className="text-4xl font-bold text-center mb-12 text-stone-900 font-serif">
+          <h2 className="text-4xl font-bold text-center mb-12 text-foreground font-serif">
             Frequently Asked Questions
           </h2>
 
@@ -1955,9 +1969,9 @@ function ContactPage() {
               <AccordionItem
                 key={index}
                 value={`item-${index}`}
-                className="bg-white rounded-2xl shadow-lg px-6 border-0"
+                className="bg-card rounded-2xl shadow-lg px-6 border-0"
               >
-                <AccordionTrigger className="text-left font-semibold text-stone-900 hover:text-emerald-600 py-4">
+                <AccordionTrigger className="text-left font-semibold text-foreground hover:text-emerald-600 py-4">
                   {item.question}
                 </AccordionTrigger>
                 <AccordionContent className="text-gray-600 pb-4">
@@ -2006,7 +2020,7 @@ function TicketDetailModal({
             </span>
           )}
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center">
+            <div className="w-14 h-14 bg-card/20 rounded-xl flex items-center justify-center">
               {ticket.type === "flight" ? (
                 <Plane className="w-7 h-7" />
               ) : (
@@ -2033,9 +2047,9 @@ function TicketDetailModal({
           {ticket.type === "flight" ? (
             <div className="space-y-6">
               {/* Flight Route */}
-              <div className="flex items-center justify-between bg-stone-50 rounded-xl p-4">
+              <div className="flex items-center justify-between bg-muted/30 rounded-xl p-4">
                 <div className="text-center">
-                  <p className="text-3xl font-bold text-stone-900">{ticket.from}</p>
+                  <p className="text-3xl font-bold text-foreground">{ticket.from}</p>
                   <p className="text-sm text-gray-500">{ticket.fromCity}</p>
                 </div>
                 <div className="flex-1 flex items-center justify-center px-4">
@@ -2048,38 +2062,38 @@ function TicketDetailModal({
                   </div>
                 </div>
                 <div className="text-center">
-                  <p className="text-3xl font-bold text-stone-900">{ticket.to}</p>
+                  <p className="text-3xl font-bold text-foreground">{ticket.to}</p>
                   <p className="text-sm text-gray-500">{ticket.toCity}</p>
                 </div>
               </div>
 
               {/* Flight Details Grid */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-stone-50 rounded-lg p-3">
+                <div className="bg-muted/30 rounded-lg p-3">
                   <p className="text-xs text-gray-500 uppercase mb-1">Passenger</p>
-                  <p className="font-semibold text-stone-900">{ticket.passengerName}</p>
+                  <p className="font-semibold text-foreground">{ticket.passengerName}</p>
                 </div>
-                <div className="bg-stone-50 rounded-lg p-3">
+                <div className="bg-muted/30 rounded-lg p-3">
                   <p className="text-xs text-gray-500 uppercase mb-1">Flight</p>
-                  <p className="font-semibold text-stone-900">{ticket.flightCode}</p>
+                  <p className="font-semibold text-foreground">{ticket.flightCode}</p>
                 </div>
-                <div className="bg-stone-50 rounded-lg p-3">
+                <div className="bg-muted/30 rounded-lg p-3">
                   <p className="text-xs text-gray-500 uppercase mb-1">Date</p>
-                  <p className="font-semibold text-stone-900">{ticket.date}</p>
+                  <p className="font-semibold text-foreground">{ticket.date}</p>
                 </div>
-                <div className="bg-stone-50 rounded-lg p-3">
+                <div className="bg-muted/30 rounded-lg p-3">
                   <p className="text-xs text-gray-500 uppercase mb-1">Time</p>
-                  <p className="font-semibold text-stone-900">{ticket.time}</p>
+                  <p className="font-semibold text-foreground">{ticket.time}</p>
                 </div>
-                <div className="bg-stone-50 rounded-lg p-3">
+                <div className="bg-muted/30 rounded-lg p-3">
                   <p className="text-xs text-gray-500 uppercase mb-1">Seat</p>
-                  <p className="font-semibold text-stone-900">{ticket.seat}</p>
+                  <p className="font-semibold text-foreground">{ticket.seat}</p>
                 </div>
-                <div className="bg-stone-50 rounded-lg p-3">
+                <div className="bg-muted/30 rounded-lg p-3">
                   <p className="text-xs text-gray-500 uppercase mb-1">Class</p>
-                  <p className="font-semibold text-stone-900">{ticket.flightClass}</p>
+                  <p className="font-semibold text-foreground">{ticket.flightClass}</p>
                 </div>
-                <div className="bg-stone-50 rounded-lg p-3">
+                <div className="bg-muted/30 rounded-lg p-3">
                   <p className="text-xs text-gray-500 uppercase mb-1">Status</p>
                   <span className={cn(
                     "px-2 py-0.5 rounded-full text-xs font-bold uppercase",
@@ -2090,7 +2104,7 @@ function TicketDetailModal({
                     {ticket.status}
                   </span>
                 </div>
-                <div className="bg-stone-50 rounded-lg p-3">
+                <div className="bg-muted/30 rounded-lg p-3">
                   <p className="text-xs text-gray-500 uppercase mb-1">Total Paid</p>
                   <p className="font-bold text-lg text-emerald-600">${ticket.totalPaid.toLocaleString()}</p>
                 </div>
@@ -2099,8 +2113,8 @@ function TicketDetailModal({
           ) : (
             <div className="space-y-6">
               {/* Tour Header */}
-              <div className="bg-stone-50 rounded-xl p-4">
-                <h3 className="text-xl font-bold text-stone-900 mb-2">{ticket.hotel}</h3>
+              <div className="bg-muted/30 rounded-xl p-4">
+                <h3 className="text-xl font-bold text-foreground mb-2">{ticket.hotel}</h3>
                 <div className="flex flex-wrap gap-2 text-xs">
                   {ticket.selectedTransport && (
                     <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded-md border border-blue-100 flex items-center gap-1">
@@ -2120,15 +2134,15 @@ function TicketDetailModal({
 
               {/* Tour Details Grid */}
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                <div className="bg-stone-50 rounded-lg p-3">
+                <div className="bg-muted/30 rounded-lg p-3">
                   <p className="text-xs text-gray-500 uppercase mb-1">Traveler</p>
-                  <p className="font-semibold text-stone-900 truncate">{ticket.passengerName}</p>
+                  <p className="font-semibold text-foreground truncate">{ticket.passengerName}</p>
                 </div>
-                <div className="bg-stone-50 rounded-lg p-3">
+                <div className="bg-muted/30 rounded-lg p-3">
                   <p className="text-xs text-gray-500 uppercase mb-1">Tour Date</p>
-                  <p className="font-semibold text-stone-900">{ticket.date}</p>
+                  <p className="font-semibold text-foreground">{ticket.date}</p>
                 </div>
-                <div className="bg-stone-50 rounded-lg p-3">
+                <div className="bg-muted/30 rounded-lg p-3">
                   <p className="text-xs text-gray-500 uppercase mb-1">Status</p>
                   <span className={cn(
                     "px-2 py-0.5 rounded-full text-[10px] font-black uppercase",
@@ -2140,46 +2154,46 @@ function TicketDetailModal({
                   </span>
                 </div>
                 {ticket.selectedAddOns && ticket.selectedAddOns.length > 0 && (
-                  <div className="col-span-full bg-stone-50 rounded-lg p-3">
+                  <div className="col-span-full bg-muted/30 rounded-lg p-3">
                     <p className="text-xs text-gray-500 uppercase mb-1">Optional Add-ons</p>
                     <div className="flex flex-wrap gap-2">
                       {ticket.selectedAddOns.map(a => (
-                        <span key={a.label} className="text-xs font-semibold text-stone-700 bg-white border border-stone-200 px-2 py-1 rounded-lg">
+                        <span key={a.label} className="text-xs font-semibold text-stone-700 bg-card border border-stone-200 px-2 py-1 rounded-lg">
                           + {a.label}
                         </span>
                       ))}
                     </div>
                   </div>
                 )}
-                <div className="bg-stone-50 rounded-lg p-3 flex justify-between items-center col-span-full">
+                <div className="bg-muted/30 rounded-lg p-3 flex justify-between items-center col-span-full">
                   <div>
                     <p className="text-xs text-gray-500 uppercase mb-1">Total Paid</p>
                     <p className="font-bold text-xl text-emerald-600">${ticket.totalPaid.toLocaleString()}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-[10px] text-stone-400 uppercase font-black">Guests</p>
-                    <p className="text-sm font-bold text-stone-900">{ticket.guests || "—"}</p>
+                    <p className="text-sm font-bold text-foreground">{ticket.guests || "—"}</p>
                   </div>
                 </div>
               </div>
 
               {/* Tour Details Grid */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-stone-50 rounded-lg p-3">
+                <div className="bg-muted/30 rounded-lg p-3">
                   <p className="text-xs text-gray-500 uppercase mb-1">Guest</p>
-                  <p className="font-semibold text-stone-900">{ticket.passengerName}</p>
+                  <p className="font-semibold text-foreground">{ticket.passengerName}</p>
                 </div>
-                <div className="bg-stone-50 rounded-lg p-3">
+                <div className="bg-muted/30 rounded-lg p-3">
                   <p className="text-xs text-gray-500 uppercase mb-1">Guests</p>
-                  <p className="font-semibold text-stone-900">{ticket.guests}</p>
+                  <p className="font-semibold text-foreground">{ticket.guests}</p>
                 </div>
-                <div className="bg-stone-50 rounded-lg p-3">
+                <div className="bg-muted/30 rounded-lg p-3">
                   <p className="text-xs text-gray-500 uppercase mb-1">Check-in</p>
-                  <p className="font-semibold text-stone-900">{ticket.date}</p>
+                  <p className="font-semibold text-foreground">{ticket.date}</p>
                 </div>
-                <div className="bg-stone-50 rounded-lg p-3">
+                <div className="bg-muted/30 rounded-lg p-3">
                   <p className="text-xs text-gray-500 uppercase mb-1">Duration</p>
-                  <p className="font-semibold text-stone-900">{ticket.duration}</p>
+                  <p className="font-semibold text-foreground">{ticket.duration}</p>
                 </div>
               </div>
 
@@ -2307,12 +2321,12 @@ function TicketsPage() {
   // Redirect if not authenticated
   if (!isAuthenticated) {
     return (
-      <section className="pt-20 min-h-screen flex items-center justify-center bg-stone-50">
+      <section className="pt-20 min-h-screen flex items-center justify-center bg-muted/30">
         <div className="text-center p-8">
           <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
             <Ticket className="w-10 h-10 text-blue-500" />
           </div>
-          <h1 className="text-3xl font-bold text-stone-900 mb-4">Sign In Required</h1>
+          <h1 className="text-3xl font-bold text-foreground mb-4">Sign In Required</h1>
           <p className="text-gray-500 mb-8 max-w-md">
             Please sign in to view your e-tickets and vouchers.
           </p>
@@ -2363,7 +2377,7 @@ function TicketsPage() {
             {unviewedCount > 0 && (
               <Button
                 variant="outline"
-                className="bg-white/10 text-white border-white/30 hover:bg-white/20"
+                className="bg-card/10 text-white border-white/30 hover:bg-card/20"
                 onClick={() => markAllTicketsViewed()}
               >
                 <Check className="w-4 h-4 mr-2" />
@@ -2377,7 +2391,7 @@ function TicketsPage() {
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">
         {/* Tabs */}
         <div className="flex justify-center mb-6 -mx-4 px-4 md:mx-0 md:px-0 overflow-x-auto scrollbar-hide">
-          <div className="bg-white rounded-full p-1 md:p-1.5 shadow-lg inline-flex gap-1">
+          <div className="bg-card rounded-full p-1 md:p-1.5 shadow-lg inline-flex gap-1 border border-border">
             {[
               { label: "All", value: "all" },
               { label: "Flights", value: "flight", icon: Plane },
@@ -2408,7 +2422,7 @@ function TicketsPage() {
               key={ticket.id}
               onClick={() => handleViewTicket(ticket)}
               className={cn(
-                "bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition-all text-left relative border-2 group",
+                "bg-card rounded-xl p-4 shadow-sm hover:shadow-md transition-all text-left relative border-border border-2 group",
                 ticket.status === "cancelled"
                   ? "border-gray-200 opacity-60"
                   : !ticket.isViewed
@@ -2475,7 +2489,7 @@ function TicketsPage() {
                   {/* Flight Highlights */}
                   {ticket.type === "flight" ? (
                     <>
-                      <p className="font-semibold text-stone-900 truncate">
+                      <p className="font-semibold text-foreground truncate">
                         {ticket.fromCity} → {ticket.toCity}
                       </p>
                       <p className="text-sm text-gray-500">
@@ -2484,7 +2498,7 @@ function TicketsPage() {
                     </>
                   ) : (
                     <>
-                      <p className="font-semibold text-stone-900 truncate">
+                      <p className="font-semibold text-foreground truncate">
                         {ticket.hotel}
                       </p>
                       <p className="text-sm text-gray-500">
@@ -2504,7 +2518,7 @@ function TicketsPage() {
         {filteredTickets.length === 0 && (
           <div className="text-center py-16">
             <Ticket className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-xl font-bold text-stone-900 mb-2">
+            <h3 className="text-xl font-bold text-foreground mb-2">
               No tickets found
             </h3>
             <p className="text-gray-500 mb-6">
@@ -2541,8 +2555,10 @@ function NotificationSection() {
     tickets,
     vouchers,
     setAdminSection,
+    setAdminSearchQuery,
     setPage
   } = useVistaStore();
+  const { user } = useAuthStore();
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -2569,24 +2585,50 @@ function NotificationSection() {
     }
 
     // Find the related item to verify it exists
+    const isAdmin = user?.role === 'ADMIN' || user?.role === 'STAFF';
+    
     if (notification.relatedType === "ticket") {
       const ticket = tickets.find(t => t.id === notification.relatedId);
       if (ticket) {
-        setAdminSection("tickets");
-        toast.success(`Opening ticket: ${ticket.bookingId}`);
+        setAdminSearchQuery(ticket.bookingId);
+        if (isAdmin) {
+          // Admin flows
+          if (ticket.type === "flight") {
+            setAdminSection("flight_bookings");
+            toast.success(`Opening flight ticket: ${ticket.bookingId}`);
+          } else {
+            setAdminSection("bookings");
+            toast.success(`Opening tour booking: ${ticket.bookingId}`);
+          }
+        } else {
+          // Customer flows
+          setPage("admin"); // Profile/Dashboard
+          setAdminSection("tickets");
+          toast.success(`Opening your ticket: ${ticket.bookingId}`);
+        }
       } else {
         toast.error("Ticket not found");
       }
     } else if (notification.relatedType === "voucher") {
       const voucher = vouchers.find(v => v.id === notification.relatedId);
       if (voucher) {
-        setAdminSection("settings");
+        if (isAdmin) {
+          setAdminSection("vouchers");
+        } else {
+          setPage("admin");
+          setAdminSection("vouchers");
+        }
         toast.success(`Viewing voucher: ${voucher.code}`);
       } else {
         toast.error("Voucher not found");
       }
     } else if (notification.relatedType === "destination") {
-      setAdminSection("wishlist");
+      if (isAdmin) {
+        setAdminSection("wishlist");
+      } else {
+        setPage("admin");
+        setAdminSection("wishlist");
+      }
       toast.success("Opening wishlist");
     }
 
@@ -2598,7 +2640,13 @@ function NotificationSection() {
 
     if (notification.relatedType === "ticket") {
       const ticket = tickets.find(t => t.id === notification.relatedId);
-      return ticket ? { label: `View Ticket: ${ticket.bookingId}`, icon: Ticket } : null;
+      const isAdmin = user?.role === 'ADMIN' || user?.role === 'STAFF';
+      return ticket ? { 
+        label: isAdmin 
+          ? (ticket.type === "flight" ? `View Flight Ticket: ${ticket.bookingId}` : `View Tour Booking: ${ticket.bookingId}`)
+          : `View My Ticket: ${ticket.bookingId}`, 
+        icon: ticket.type === "flight" ? Plane : Calendar 
+      } : null;
     } else if (notification.relatedType === "voucher") {
       const voucher = vouchers.find(v => v.id === notification.relatedId);
       return voucher ? { label: `View Voucher: ${voucher.code}`, icon: Tag } : null;
@@ -2612,7 +2660,7 @@ function NotificationSection() {
     <div className="space-y-4 md:space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-lg md:text-2xl font-bold text-stone-900">Notifications</h2>
+          <h2 className="text-lg md:text-2xl font-bold text-foreground">Notifications</h2>
           <p className="text-gray-500 text-sm">{unreadNotificationCount} unread of {notifications.length} total</p>
         </div>
         <div className="flex gap-2">
@@ -2653,7 +2701,7 @@ function NotificationSection() {
               <div
                 key={notification.id}
                 className={cn(
-                  "bg-white rounded-lg shadow-sm border transition-all cursor-pointer",
+                  "bg-card rounded-lg shadow-sm border transition-all cursor-pointer",
                   notification.isRead ? "border-gray-200" : "border-emerald-200 bg-emerald-50/50",
                   isExpanded && "ring-2 ring-emerald-400"
                 )}
@@ -2669,13 +2717,13 @@ function NotificationSection() {
                         notification.type === "booking" && "bg-emerald-500",
                         notification.type === "offer" && "bg-blue-500",
                         notification.type === "payment" && "bg-amber-500",
-                        notification.type === "system" && "bg-gray-500"
+                        notification.type === "system" && "bg-muted/30"
                       )}></div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <h3 className={cn(
                             "font-medium text-sm truncate",
-                            notification.isRead ? "text-gray-700" : "text-stone-900"
+                            notification.isRead ? "text-gray-700" : "text-foreground"
                           )}>
                             {notification.title}
                           </h3>
@@ -2731,7 +2779,7 @@ function NotificationSection() {
                 {/* Expanded Content */}
                 {isExpanded && notification.fullMessage && (
                   <div className="px-3 pb-3 pt-0">
-                    <div className="ml-4 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                    <div className="ml-4 p-3 bg-muted/30 rounded-lg border border-border/50">
                       <p className="text-gray-700 text-sm leading-relaxed">{notification.fullMessage}</p>
 
                       {/* Navigate to related item button */}
@@ -2752,7 +2800,7 @@ function NotificationSection() {
           })}
         </div>
       ) : (
-        <div className="bg-white rounded-xl p-12 text-center">
+        <div className="bg-muted/30 rounded-xl p-12 text-center border border-border">
           <Bell className="w-16 h-16 text-gray-300 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-700 mb-2">No notifications</h3>
           <p className="text-gray-500">You're all caught up! New notifications will appear here.</p>
@@ -2827,14 +2875,14 @@ function ProfileSection() {
     <div className="w-full text-left space-y-8 pb-16 animate-in fade-in duration-500">
       {/* Header Section */}
       <div className="mb-0">
-        <h1 className="text-3xl font-bold text-stone-900 tracking-tight">My Profile</h1>
+        <h1 className="text-3xl font-bold text-foreground tracking-tight">My Profile</h1>
         <p className="text-stone-500 font-medium text-sm">Manage your account settings</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         
         {/* Left Card: Profile Summary */}
-        <Card className="lg:col-span-4 rounded-3xl border border-stone-100 shadow-sm bg-white overflow-hidden p-8 flex flex-col items-center text-center">
+        <Card className="lg:col-span-4 rounded-3xl border border-border shadow-sm bg-card overflow-hidden p-8 flex flex-col items-center text-center">
           <div className="relative group/avatar mb-6">
             <Avatar className="w-40 h-40 border-0 shadow-lg relative">
               <AvatarImage src={avatarPreview || undefined} alt={user.firstName} className="object-cover" />
@@ -2859,7 +2907,7 @@ function ProfileSection() {
           </div>
 
           <div className="space-y-1 mb-6">
-            <h3 className="text-2xl font-bold text-stone-900 leading-none">
+            <h3 className="text-2xl font-bold text-foreground leading-none">
               {user.firstName} {user.lastName}
             </h3>
             <p className="text-stone-400 font-medium text-sm">{user.email}</p>
@@ -2869,19 +2917,19 @@ function ProfileSection() {
             <div className="px-3 py-1 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-md border border-emerald-200/30">
               {loyaltyInfo.currentTier.name} Member
             </div>
-            <div className="px-3 py-1 bg-white text-stone-500 text-[10px] font-bold rounded-md border border-stone-200">
+            <div className="px-3 py-1 bg-card text-stone-500 text-[10px] font-bold rounded-md border border-stone-200">
               Since {new Date(loyaltyInfo.memberSince || user.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
             </div>
           </div>
         </Card>
 
         {/* Right Card: Personal Information */}
-        <Card className="lg:col-span-8 rounded-3xl border border-stone-100 shadow-sm bg-white overflow-hidden">
+        <Card className="lg:col-span-8 rounded-3xl border border-border shadow-sm bg-card overflow-hidden">
           <CardHeader className="p-8 pb-4 border-0 flex flex-row items-center justify-between">
-            <h2 className="text-lg font-bold text-stone-900">Personal Information</h2>
+            <h2 className="text-lg font-bold text-foreground">Personal Information</h2>
             <button
               onClick={() => setIsEditing(!isEditing)}
-              className="flex items-center gap-2 text-stone-900 font-bold text-xs hover:opacity-70 transition-opacity"
+              className="flex items-center gap-2 text-foreground font-bold text-xs hover:opacity-70 transition-opacity"
             >
               {isEditing ? <X className="w-3.5 h-3.5" /> : <Pencil className="w-3.5 h-3.5" />}
               {isEditing ? "Cancel" : "Edit"}
@@ -2892,44 +2940,44 @@ function ProfileSection() {
               <form onSubmit={handleSubmit} className="space-y-6 animate-in fade-in duration-300">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label className="text-xs font-bold text-stone-900">First Name</Label>
+                    <Label className="text-xs font-bold text-foreground">First Name</Label>
                     <Input
                       name="firstName"
                       value={formData.firstName}
                       onChange={handleInputChange}
                       placeholder="First Name"
-                      className="h-11 rounded-lg border-stone-200 bg-white focus-visible:ring-emerald-500 text-sm font-medium px-4 shadow-none"
+                      className="h-11 rounded-lg border-stone-200 bg-card focus-visible:ring-emerald-500 text-sm font-medium px-4 shadow-none"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs font-bold text-stone-900 opacity-0 md:block hidden">Last Name</Label>
+                    <Label className="text-xs font-bold text-foreground opacity-0 md:block hidden">Last Name</Label>
                     <Input
                       name="lastName"
                       value={formData.lastName}
                       onChange={handleInputChange}
                       placeholder="Last Name"
-                      className="h-11 rounded-lg border-stone-200 bg-white focus-visible:ring-emerald-500 text-sm font-medium px-4 shadow-none"
+                      className="h-11 rounded-lg border-stone-200 bg-card focus-visible:ring-emerald-500 text-sm font-medium px-4 shadow-none"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-xs font-bold text-stone-900">Email</Label>
+                  <Label className="text-xs font-bold text-foreground">Email</Label>
                   <Input
                     name="email"
                     value={formData.email}
                     disabled
-                    className="h-11 rounded-lg border-stone-200 bg-stone-50 text-sm font-medium text-stone-400 cursor-not-allowed px-4 shadow-none"
+                    className="h-11 rounded-lg border-stone-200 bg-muted/30 text-sm font-medium text-stone-400 cursor-not-allowed px-4 shadow-none"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-xs font-bold text-stone-900">Phone</Label>
+                  <Label className="text-xs font-bold text-foreground">Phone</Label>
                   <Input
                     name="phone"
                     value={formData.phone}
                     onChange={handleInputChange}
-                    className="h-11 rounded-lg border-stone-200 bg-white focus-visible:ring-emerald-500 text-sm font-medium px-4 shadow-none"
+                    className="h-11 rounded-lg border-stone-200 bg-card focus-visible:ring-emerald-500 text-sm font-medium px-4 shadow-none"
                     placeholder="+260 977 123 456"
                   />
                 </div>
@@ -2947,20 +2995,20 @@ function ProfileSection() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-12 animate-in fade-in duration-500">
                 <div className="space-y-1.5">
-                  <p className="text-xs font-bold text-stone-900">Full Name</p>
-                  <div className="h-11 rounded-lg border border-stone-100 bg-white flex items-center px-4 text-sm font-medium text-stone-500 shadow-none">
+                  <p className="text-xs font-bold text-foreground">Full Name</p>
+                  <div className="h-11 rounded-lg border border-border/50 bg-card flex items-center px-4 text-sm font-medium text-stone-500 shadow-none">
                     {user.firstName} {user.lastName}
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <p className="text-xs font-bold text-stone-900">Email</p>
-                  <div className="h-11 rounded-lg border border-stone-100 bg-white flex items-center px-4 text-sm font-medium text-stone-500 shadow-none">
+                  <p className="text-xs font-bold text-foreground">Email</p>
+                  <div className="h-11 rounded-lg border border-border/50 bg-card flex items-center px-4 text-sm font-medium text-stone-500 shadow-none">
                     {user.email}
                   </div>
                 </div>
                 <div className="space-y-1.5 col-span-1 md:col-span-2">
-                  <p className="text-xs font-bold text-stone-900">Phone</p>
-                  <div className="h-11 rounded-lg border border-stone-100 bg-white flex items-center px-4 text-sm font-medium text-stone-500 shadow-none">
+                  <p className="text-xs font-bold text-foreground">Phone</p>
+                  <div className="h-11 rounded-lg border border-border/50 bg-card flex items-center px-4 text-sm font-medium text-stone-500 shadow-none">
                     {user.phone || '+260 977 123 456'}
                   </div>
                 </div>
@@ -2970,10 +3018,10 @@ function ProfileSection() {
         </Card>
 
         {/* Bottom Card: Loyalty Status */}
-        <Card className="lg:col-span-12 rounded-3xl border border-stone-100 shadow-sm bg-white overflow-hidden p-8">
+        <Card className="lg:col-span-12 rounded-3xl border border-border shadow-sm bg-card overflow-hidden p-8">
           <div className="flex items-center gap-2 mb-8">
             <Gift className="w-5 h-5 text-emerald-500" />
-            <h2 className="text-lg font-bold text-stone-900">Loyalty Status</h2>
+            <h2 className="text-lg font-bold text-foreground">Loyalty Status</h2>
           </div>
 
           <div className="flex items-center gap-6">
@@ -2983,7 +3031,7 @@ function ProfileSection() {
             
             <div className="flex-1 w-full space-y-3">
               <div className="flex flex-col">
-                <h4 className="text-base font-bold text-stone-900 leading-tight">{loyaltyInfo.currentTier.name} Member</h4>
+                <h4 className="text-base font-bold text-foreground leading-tight">{loyaltyInfo.currentTier.name} Member</h4>
                 <p className="text-xs font-medium text-stone-400">
                   {loyaltyInfo.nextTier 
                     ? `${loyaltyInfo.pointsToNextTier} points to ${loyaltyInfo.nextTier.name}`
@@ -3011,7 +3059,8 @@ function ProfileSection() {
 
 // Wishlist Section Component
 function WishlistSection() {
-  const { wishlist, removeFromWishlist, clearWishlist, setPage } = useVistaStore();
+  const { wishlist, removeFromWishlist, clearWishlist, setPage, getCurrencySymbol, convertFromUSD } = useVistaStore();
+  const currencySymbol = getCurrencySymbol();
   const { user } = useAuthStore();
 
   const handleRemove = async (id: string) => {
@@ -3054,7 +3103,7 @@ function WishlistSection() {
     <div className="space-y-4 md:space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-lg md:text-2xl font-bold text-stone-900">My Wishlist</h2>
+          <h2 className="text-lg md:text-2xl font-bold text-foreground">My Wishlist</h2>
           <p className="text-gray-500 text-sm">{wishlist.length} saved destinations</p>
         </div>
         {wishlist.length > 0 && (
@@ -3074,7 +3123,7 @@ function WishlistSection() {
           {wishlist.map((dest) => (
             <div
               key={dest.id}
-              className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100 hover:shadow-md transition-all group"
+              className="bg-card rounded-xl shadow-sm overflow-hidden border border-border hover:shadow-md transition-all group"
             >
               <div className="relative h-40 overflow-hidden">
                 <img
@@ -3085,7 +3134,7 @@ function WishlistSection() {
                 <div className="absolute top-2 right-2">
                   <button
                     onClick={() => handleRemove(dest.id)}
-                    className="w-8 h-8 bg-white/90 rounded-full flex items-center justify-center hover:bg-red-500 hover:text-white transition-colors"
+                    className="w-8 h-8 bg-card/90 rounded-full flex items-center justify-center hover:bg-red-500 hover:text-white transition-colors"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -3097,7 +3146,7 @@ function WishlistSection() {
                 </div>
               </div>
               <div className="p-4">
-                <h3 className="font-bold text-stone-900 truncate">{dest.title}</h3>
+                <h3 className="font-bold text-foreground truncate">{dest.title}</h3>
                 <p className="text-xs text-gray-500 mb-2">{dest.location}</p>
                 <div className="flex items-center gap-1 mb-2">
                   <Star className="w-3 h-3 text-yellow-500 fill-current" />
@@ -3105,7 +3154,9 @@ function WishlistSection() {
                   <span className="text-xs text-gray-400">({dest.reviews} reviews)</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <p className="font-bold text-emerald-600">${dest.price.toLocaleString()}</p>
+                  <p className="font-bold text-emerald-600">
+                    {currencySymbol}{convertFromUSD(dest.price).toLocaleString()}
+                  </p>
                   <span className="text-xs text-gray-500">{dest.duration}</span>
                 </div>
                 <BookingModal
@@ -3128,9 +3179,9 @@ function WishlistSection() {
           ))}
         </div>
       ) : (
-        <div className="bg-white rounded-xl p-8 md:p-12 text-center">
+        <div className="bg-card rounded-xl p-8 md:p-12 text-center">
           <Heart className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-stone-900 mb-2">Your wishlist is empty</h3>
+          <h3 className="text-lg font-semibold text-foreground mb-2">Your wishlist is empty</h3>
           <p className="text-gray-500 mb-6">Save destinations you love by clicking the heart icon</p>
           <Button
             onClick={() => setPage("destinations")}
@@ -3378,13 +3429,13 @@ function AnalyticsSection() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 md:mb-8">
         <div>
-          <h2 className="text-xl md:text-3xl font-bold text-stone-900">Analytics</h2>
+          <h2 className="text-xl md:text-3xl font-bold text-foreground">Analytics</h2>
           <p className="text-gray-500 text-sm md:text-base mt-1">Detailed insights and performance metrics</p>
         </div>
         <select
           value={timeRange}
           onChange={(e) => setTimeRange(e.target.value)}
-          className="border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-stone-700 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-300 cursor-pointer"
+          className="border border-border rounded-xl px-4 py-2.5 text-sm text-foreground bg-card shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-300 cursor-pointer"
         >
           {["Today", "This Week", "This Month", "This Quarter", "This Year"].map(r => (
             <option key={r} value={r}>{r}</option>
@@ -3395,7 +3446,7 @@ function AnalyticsSection() {
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 md:gap-6 mb-8">
         {kpis.map((kpi, i) => (
-          <div key={i} className="bg-white rounded-2xl md:rounded-[20px] shadow-sm ring-1 ring-gray-100 p-5 md:p-6 flex flex-col gap-4 hover:shadow-md transition-shadow">
+          <div key={i} className="bg-card rounded-2xl md:rounded-[20px] shadow-sm ring-1 ring-border p-5 md:p-6 flex flex-col gap-4 hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between">
               <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", kpi.iconBg)}>
                 <kpi.icon className={cn("w-5 h-5", kpi.iconColor)} />
@@ -3408,7 +3459,7 @@ function AnalyticsSection() {
               </span>
             </div>
             <div>
-              <p className="text-2xl md:text-3xl font-bold text-stone-900">{kpi.value}</p>
+              <p className="text-2xl md:text-3xl font-bold text-foreground">{kpi.value}</p>
               <p className="text-sm text-gray-500 mt-1">{kpi.label}</p>
             </div>
           </div>
@@ -3418,8 +3469,8 @@ function AnalyticsSection() {
       {/* Main Charts Row */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-8">
         {/* Revenue Trend */}
-        <div className="bg-white rounded-2xl md:rounded-[24px] shadow-sm ring-1 ring-gray-100 p-6 md:p-8">
-          <h3 className="text-lg font-bold text-stone-900 mb-6">Revenue Trend</h3>
+        <div className="bg-card rounded-2xl md:rounded-[24px] shadow-sm ring-1 ring-border p-6 md:p-8 border border-border">
+          <h3 className="text-lg font-bold text-foreground mb-6">Revenue Trend</h3>
           <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={revenueData}>
@@ -3461,8 +3512,8 @@ function AnalyticsSection() {
         </div>
 
         {/* Booking Status Distribution */}
-        <div className="bg-white rounded-2xl md:rounded-[24px] shadow-sm ring-1 ring-gray-100 p-6 md:p-8">
-          <h3 className="text-lg font-bold text-stone-900 mb-6">Booking Status Distribution</h3>
+        <div className="bg-card rounded-2xl md:rounded-[24px] shadow-sm ring-1 ring-border p-6 md:p-8 border border-border">
+          <h3 className="text-lg font-bold text-foreground mb-6">Booking Status Distribution</h3>
           <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={statusData}>
@@ -3497,8 +3548,8 @@ function AnalyticsSection() {
       {/* Bottom Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Top Destinations */}
-        <div className="bg-white rounded-2xl md:rounded-[24px] shadow-sm ring-1 ring-gray-100 p-6 md:p-8">
-          <h3 className="text-lg font-bold text-stone-900 mb-6">Top Destinations</h3>
+        <div className="bg-card rounded-2xl md:rounded-[24px] shadow-sm ring-1 ring-border p-6 md:p-8 border border-border">
+          <h3 className="text-lg font-bold text-foreground mb-6">Top Destinations</h3>
           <div className="space-y-6">
             {topDestinations.map((dest, i) => (
               <div key={i} className="flex items-center justify-between">
@@ -3507,7 +3558,7 @@ function AnalyticsSection() {
                     {dest.rank}
                   </div>
                   <div>
-                    <p className="font-bold text-stone-900">{dest.name}</p>
+                    <p className="font-bold text-foreground">{dest.name}</p>
                     <p className="text-xs text-gray-500">{dest.bookings} bookings</p>
                   </div>
                 </div>
@@ -3518,8 +3569,8 @@ function AnalyticsSection() {
         </div>
 
         {/* Customer Demographics */}
-        <div className="bg-white rounded-2xl md:rounded-[24px] shadow-sm ring-1 ring-gray-100 p-6 md:p-8 flex flex-col">
-          <h3 className="text-lg font-bold text-stone-900 mb-2">Customer Demographics</h3>
+        <div className="bg-card rounded-2xl md:rounded-[24px] shadow-sm ring-1 ring-border p-6 md:p-8 flex flex-col border border-border">
+          <h3 className="text-lg font-bold text-foreground mb-2">Customer Demographics</h3>
           <div className="flex-1 h-[240px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -3551,8 +3602,8 @@ function AnalyticsSection() {
         </div>
 
         {/* Recent Activity */}
-        <div className="bg-white rounded-2xl md:rounded-[24px] shadow-sm ring-1 ring-gray-100 p-6 md:p-8">
-          <h3 className="text-lg font-bold text-stone-900 mb-6">Recent Activity</h3>
+        <div className="bg-card rounded-2xl md:rounded-[24px] shadow-sm ring-1 ring-border p-6 md:p-8 border border-border">
+          <h3 className="text-lg font-bold text-foreground mb-6">Recent Activity</h3>
           <div className="space-y-6">
             {recentActivity.map((act, i) => (
               <div key={i} className="flex gap-4">
@@ -3561,7 +3612,7 @@ function AnalyticsSection() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-0.5">
-                    <p className="font-bold text-stone-900 text-sm truncate">{act.title}</p>
+                    <p className="font-bold text-foreground text-sm truncate">{act.title}</p>
                     <span className="text-[10px] text-gray-400 font-medium whitespace-nowrap ml-2">{act.time}</span>
                   </div>
                   <p className="text-xs text-gray-500 truncate">{act.subtitle}</p>
@@ -3585,7 +3636,7 @@ function MessagesSection() {
     <div className="w-full text-left h-[calc(100vh-200px)] flex flex-col">
       <div className="flex items-center justify-between mb-8 px-1">
         <div>
-          <h2 className="text-xl md:text-3xl font-bold text-stone-900">Inquiries</h2>
+          <h2 className="text-xl md:text-3xl font-bold text-foreground">Inquiries</h2>
           <p className="text-gray-500 text-sm md:text-base mt-1">General messages from the contact form</p>
         </div>
         <div className="bg-blue-50 text-blue-600 px-4 py-1.5 rounded-full text-sm font-black uppercase tracking-widest">
@@ -3597,7 +3648,7 @@ function MessagesSection() {
         {/* Messages List */}
         <div className="w-80 flex flex-col gap-4 overflow-y-auto pr-2 custom-scrollbar">
           {contactMessages.length === 0 ? (
-            <div className="text-center py-10 bg-white rounded-3xl border border-gray-100 text-gray-400 text-sm">
+            <div className="text-center py-10 bg-card rounded-3xl border border-border/50 text-gray-400 text-sm">
               No messages yet
             </div>
           ) : contactMessages.map((m) => (
@@ -3608,13 +3659,13 @@ function MessagesSection() {
                 "p-5 rounded-3xl text-left transition-all border flex flex-col gap-3 group",
                 selectedMsg?.id === m.id
                   ? "bg-stone-900 border-stone-900 text-white shadow-xl shadow-stone-100"
-                  : "bg-white border-gray-100 text-stone-900 hover:border-gray-200 hover:shadow-sm"
+                  : "bg-card border-border text-foreground hover:border-accent hover:shadow-sm"
               )}
             >
               <div className="flex items-center justify-between gap-3">
                 <div className={cn(
                   "w-10 h-10 rounded-2xl flex items-center justify-center transition-colors",
-                  selectedMsg?.id === m.id ? "bg-white/10" : "bg-blue-50 text-blue-600 group-hover:bg-blue-100"
+                  selectedMsg?.id === m.id ? "bg-card/10" : "bg-blue-50 text-blue-600 group-hover:bg-blue-100"
                 )}>
                   <Mail className="w-5 h-5" />
                 </div>
@@ -3641,42 +3692,42 @@ function MessagesSection() {
         </div>
 
         {/* Message Content */}
-        <div className="flex-1 bg-white rounded-[32px] border border-gray-100 shadow-sm flex flex-col overflow-hidden">
+        <div className="flex-1 bg-card rounded-[32px] border border-border shadow-sm flex flex-col overflow-hidden">
           {!selectedMsg ? (
             <div className="flex-1 flex flex-col items-center justify-center text-center p-12">
-              <div className="w-20 h-20 bg-stone-50 rounded-full flex items-center justify-center mb-6">
-                <Mail className="w-10 h-10 text-stone-200" />
+              <div className="w-20 h-20 bg-muted/50 rounded-full flex items-center justify-center mb-6">
+                <Mail className="w-10 h-10 text-muted-foreground" />
               </div>
-              <h3 className="text-xl font-bold text-stone-900 mb-2">Select a message</h3>
+              <h3 className="text-xl font-bold text-foreground mb-2">Select a message</h3>
               <p className="text-gray-500 max-w-xs">View the full content of customer inquiries here.</p>
             </div>
           ) : (
             <div className="flex-1 flex flex-col">
-              <div className="p-8 md:p-10 border-b border-gray-50 bg-white">
+              <div className="p-8 md:p-10 border-b border-border bg-card">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                   <div className="flex items-center gap-5">
-                    <div className="w-14 h-14 rounded-2xl bg-stone-50 flex items-center justify-center text-stone-400 font-bold text-xl">
+                    <div className="w-14 h-14 rounded-2xl bg-muted/50 flex items-center justify-center text-muted-foreground font-bold text-xl">
                       {selectedMsg.firstName[0]}{selectedMsg.lastName[0]}
                     </div>
                     <div>
-                      <h3 className="text-xl font-bold text-stone-900">{selectedMsg.subject}</h3>
-                      <p className="text-gray-500 font-medium">
+                      <h3 className="text-xl font-bold text-foreground">{selectedMsg.subject}</h3>
+                      <p className="text-muted-foreground font-medium">
                         {selectedMsg.firstName} {selectedMsg.lastName} &lt;{selectedMsg.email}&gt;
                       </p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-[11px] font-black uppercase tracking-widest text-gray-400 mb-1">Received On</p>
-                    <p className="text-sm font-bold text-stone-900">
+                    <p className="text-[11px] font-black uppercase tracking-widest text-muted-foreground mb-1">Received On</p>
+                    <p className="text-sm font-bold text-foreground">
                       {selectedMsg.timestamp ? new Date(selectedMsg.timestamp).toLocaleString() : 'N/A'}
                     </p>
                   </div>
                 </div>
               </div>
-              <div className="flex-1 p-8 md:p-10 overflow-y-auto custom-scrollbar bg-gray-50/30">
+              <div className="flex-1 p-8 md:p-10 overflow-y-auto custom-scrollbar bg-background/50">
                 <div className="max-w-3xl">
                   <p className="text-gray-400 text-xs font-black uppercase tracking-widest mb-6">Message Content</p>
-                  <div className="bg-white p-8 rounded-[32px] ring-1 ring-black/5 shadow-sm text-stone-800 leading-relaxed text-lg whitespace-pre-wrap">
+                  <div className="bg-card p-8 rounded-[32px] ring-1 ring-border shadow-sm text-foreground leading-relaxed text-lg whitespace-pre-wrap">
                     {selectedMsg.message}
                   </div>
                 </div>
@@ -3829,7 +3880,7 @@ function CustomersSection() {
     <div className="w-full text-left">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8 px-1">
         <div>
-          <h2 className="text-xl md:text-3xl font-bold text-stone-900">Customers</h2>
+          <h2 className="text-xl md:text-3xl font-bold text-foreground">Customers</h2>
           <p className="text-gray-500 text-sm md:text-base mt-1">Manage your customer database</p>
         </div>
         <div className="flex gap-4">
@@ -3849,11 +3900,11 @@ function CustomersSection() {
         </div>
       </div>
 
-      <div className="bg-white rounded-[32px] shadow-sm ring-1 ring-gray-100 overflow-hidden border border-gray-50">
+      <div className="bg-card rounded-[32px] shadow-sm ring-1 ring-border overflow-hidden border border-border">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-gray-50 bg-gray-50/30">
+              <tr className="border-b border-border bg-muted/20">
                 <th className="px-8 py-5 text-[11px] font-black uppercase tracking-widest text-gray-400">Customer</th>
                 <th className="px-8 py-5 text-[11px] font-black uppercase tracking-widest text-gray-400">Email</th>
                 <th className="px-8 py-5 text-[11px] font-black uppercase tracking-widest text-gray-400 text-center">Bookings</th>
@@ -3862,7 +3913,7 @@ function CustomersSection() {
                 <th className="px-8 py-5 text-[11px] font-black uppercase tracking-widest text-gray-400 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-border">
               {loading ? (
                 <tr>
                   <td colSpan={6} className="px-8 py-20 text-center">
@@ -3876,7 +3927,7 @@ function CustomersSection() {
               ) : filteredCustomers.map((customer) => (
                 <tr
                   key={customer.id}
-                  className="group hover:bg-gray-50/50 transition-colors cursor-pointer"
+                  className="group hover:bg-muted/30 transition-colors cursor-pointer"
                   onClick={() => handleViewClick(customer)}
                 >
                   <td className="px-8 py-5">
@@ -3888,12 +3939,12 @@ function CustomersSection() {
                           <User className="w-5 h-5 text-gray-400" />
                         )}
                       </div>
-                      <span className="font-bold text-stone-900 text-base">{customer.firstName} {customer.lastName}</span>
+                      <span className="font-bold text-foreground text-base">{customer.firstName} {customer.lastName}</span>
                     </div>
                   </td>
                   <td className="px-8 py-5 text-gray-500 font-medium">{customer.email}</td>
                   <td className="px-8 py-5 text-center text-stone-600 font-bold">{customer.bookingsCount}</td>
-                  <td className="px-8 py-5 text-center text-stone-900 font-bold">${customer.totalSpent.toLocaleString()}</td>
+                  <td className="px-8 py-5 text-center text-foreground font-bold">${customer.totalSpent.toLocaleString()}</td>
                   <td className="px-8 py-5 text-center">
                     <span className={cn(
                       "px-3 py-1 rounded-full text-xs font-bold",
@@ -3936,10 +3987,10 @@ function CustomersSection() {
 
       {/* Customer Modal */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="max-w-2xl bg-white rounded-[32px] border-none shadow-2xl p-0 overflow-hidden">
+        <DialogContent className="max-w-2xl bg-card rounded-[32px] border border-border shadow-2xl p-0 overflow-hidden">
           <div className="p-8 md:p-12">
             <DialogHeader className="mb-8">
-              <DialogTitle className="text-2xl md:text-3xl font-bold text-stone-900">
+              <DialogTitle className="text-2xl md:text-3xl font-bold text-foreground">
                 {modalType === "add" ? "Add New Customer" : modalType === "edit" ? "Edit Customer" : "Customer Details"}
               </DialogTitle>
               <DialogDescription className="text-gray-500">
@@ -3958,7 +4009,7 @@ function CustomersSection() {
                     )}
                   </div>
                   <div>
-                    <h3 className="text-2xl font-bold text-stone-900 flex items-center gap-2">
+                    <h3 className="text-2xl font-bold text-foreground flex items-center gap-2">
                        {selectedCustomer.firstName} {selectedCustomer.lastName}
                        {selectedCustomer.isVerified && <Check className="w-5 h-5 text-blue-500 bg-blue-50 rounded-full p-0.5" />}
                     </h3>
@@ -3978,11 +4029,11 @@ function CustomersSection() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-stone-50 p-6 rounded-3xl">
+                  <div className="bg-muted/30 p-6 rounded-3xl">
                     <p className="text-xs font-black uppercase tracking-widest text-gray-400 mb-1">Bookings</p>
-                    <p className="text-2xl font-bold text-stone-900">{selectedCustomer.bookingsCount}</p>
+                    <p className="text-2xl font-bold text-foreground">{selectedCustomer.bookingsCount}</p>
                   </div>
-                  <div className="bg-stone-50 p-6 rounded-3xl">
+                  <div className="bg-muted/30 p-6 rounded-3xl">
                     <p className="text-xs font-black uppercase tracking-widest text-gray-400 mb-1">Total Spent</p>
                     <p className="text-2xl font-bold text-emerald-600">${selectedCustomer.totalSpent.toLocaleString()}</p>
                   </div>
@@ -4095,7 +4146,7 @@ function CustomersSection() {
                   />
                 </div>
 
-                <div className="flex items-center gap-3 p-4 bg-stone-50 rounded-2xl">
+                <div className="flex items-center gap-3 p-4 bg-muted/30 rounded-2xl">
                   <Checkbox
                     id="isActive"
                     checked={formData.isActive}
@@ -4275,7 +4326,7 @@ function SupportTicketsSection() {
     <div className="w-full text-left h-[calc(100vh-200px)] flex flex-col">
       <div className="flex items-center justify-between mb-8 px-1">
         <div>
-          <h2 className="text-xl md:text-3xl font-bold text-stone-900">Support Tickets</h2>
+          <h2 className="text-xl md:text-3xl font-bold text-foreground">Support Tickets</h2>
           <p className="text-gray-500 text-sm md:text-base mt-1">Manage customer support conversations</p>
         </div>
         <div className="bg-orange-50 text-orange-600 px-4 py-1.5 rounded-full text-sm font-black uppercase tracking-widest">
@@ -4287,11 +4338,11 @@ function SupportTicketsSection() {
         {/* Ticket List (Left) */}
         <div className="w-80 flex flex-col gap-4 overflow-y-auto pr-2 custom-scrollbar">
           {loading ? (
-            <div className="flex items-center justify-center py-20 bg-white rounded-3xl border border-gray-100">
+            <div className="flex items-center justify-center py-20 bg-card rounded-3xl border border-border">
               <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
             </div>
           ) : tickets.length === 0 ? (
-            <div className="text-center py-10 bg-white rounded-3xl border border-gray-100 text-gray-400 text-sm">
+            <div className="text-center py-10 bg-card rounded-3xl border border-border/50 text-gray-400 text-sm">
               No tickets found
             </div>
           ) : tickets.map((t) => (
@@ -4301,14 +4352,14 @@ function SupportTicketsSection() {
               className={cn(
                 "p-5 rounded-3xl text-left transition-all border flex flex-col gap-3 group relative overflow-hidden",
                 selectedTicketId === t.id
-                  ? "bg-stone-900 border-stone-900 text-white shadow-xl shadow-stone-100"
-                  : "bg-white border-gray-100 text-stone-900 hover:border-gray-200 hover:shadow-sm"
+                  ? "bg-stone-900 border-stone-800 text-white shadow-xl shadow-stone-900/20"
+                  : "bg-card border-border text-foreground hover:border-accent hover:shadow-sm"
               )}
             >
               <div className="flex items-center justify-between gap-3">
                 <div className={cn(
                   "w-10 h-10 rounded-2xl flex items-center justify-center transition-colors",
-                  selectedTicketId === t.id ? "bg-white/10" : "bg-emerald-50 text-emerald-600 group-hover:bg-emerald-100"
+                  selectedTicketId === t.id ? "bg-card/10" : "bg-emerald-50 text-emerald-600 group-hover:bg-emerald-100"
                 )}>
                   <MessageSquare className="w-5 h-5" />
                 </div>
@@ -4343,13 +4394,13 @@ function SupportTicketsSection() {
         </div>
 
         {/* Chat Window (Right) */}
-        <div className="flex-1 bg-white rounded-[32px] border border-gray-100 shadow-sm flex flex-col overflow-hidden">
+        <div className="flex-1 bg-card rounded-[32px] border border-border shadow-sm flex flex-col overflow-hidden">
           {!selectedTicketId ? (
             <div className="flex-1 flex flex-col items-center justify-center text-center p-12">
-              <div className="w-20 h-20 bg-stone-50 rounded-full flex items-center justify-center mb-6">
-                <Headset className="w-10 h-10 text-stone-200" />
+              <div className="w-20 h-20 bg-muted/50 rounded-full flex items-center justify-center mb-6">
+                <Headset className="w-10 h-10 text-muted-foreground" />
               </div>
-              <h3 className="text-xl font-bold text-stone-900 mb-2">Select a ticket to manage</h3>
+              <h3 className="text-xl font-bold text-foreground mb-2">Select a ticket to manage</h3>
               <p className="text-gray-500 max-w-xs">Select a conversation from the left to view details and reply to the customer.</p>
             </div>
           ) : detailsLoading ? (
@@ -4359,9 +4410,9 @@ function SupportTicketsSection() {
           ) : ticketDetails ? (
             <>
               {/* Chat Header */}
-              <div className="p-6 md:p-8 border-b border-gray-50 flex items-center justify-between bg-white z-10">
+              <div className="p-6 md:p-8 border-b border-gray-50 flex items-center justify-between bg-card z-10">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-stone-50 flex items-center justify-center">
+                  <div className="w-12 h-12 rounded-2xl bg-muted/30 flex items-center justify-center">
                     {ticketDetails.user.avatar ? (
                       <img src={ticketDetails.user.avatar} className="w-full h-full rounded-2xl object-cover" />
                     ) : (
@@ -4369,7 +4420,7 @@ function SupportTicketsSection() {
                     )}
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-stone-900">{ticketDetails.subject}</h3>
+                    <h3 className="text-lg font-bold text-foreground">{ticketDetails.subject}</h3>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className="text-xs text-gray-400 font-medium">Ticket ID: {ticketDetails.ticketId} • Status: </span>
                       <span className={cn(
@@ -4395,7 +4446,7 @@ function SupportTicketsSection() {
               {/* Chat Messages */}
               <div
                 ref={scrollRef}
-                className="flex-1 overflow-y-auto p-6 md:p-10 space-y-6 custom-scrollbar bg-gray-50/30"
+                className="flex-1 overflow-y-auto p-6 md:p-10 space-y-6 custom-scrollbar bg-muted/30/30"
               >
                 {ticketDetails.messages.map((m: any, idx: number) => {
                   const isStaff = m.sender.role === 'ADMIN' || m.sender.role === 'STAFF';
@@ -4411,7 +4462,7 @@ function SupportTicketsSection() {
                         "p-4 md:p-5 rounded-3xl text-sm leading-relaxed whitespace-pre-wrap font-medium shadow-sm transition-all",
                         isStaff
                           ? "bg-stone-900 text-white shadow-stone-200"
-                          : "bg-white text-stone-900 border border-gray-100 shadow-gray-100"
+                          : "bg-card text-foreground border border-border/50 shadow-gray-100"
                       )}>
                         {m.message}
                       </div>
@@ -4431,10 +4482,10 @@ function SupportTicketsSection() {
               </div>
 
               {/* Chat Input */}
-              <div className="p-4 md:p-6 bg-white border-t border-gray-50 z-10">
+              <div className="p-4 md:p-6 bg-card border-t border-gray-50 z-10">
                 <form
                   onSubmit={handleSendReply}
-                  className="flex gap-3 bg-gray-50/50 p-2 rounded-2xl border border-gray-100 focus-within:ring-2 focus-within:ring-emerald-500/20 focus-within:border-emerald-500 transition-all"
+                  className="flex gap-3 bg-muted/50 p-2 rounded-2xl border border-border/50 focus-within:ring-2 focus-within:ring-emerald-500/20 focus-within:border-emerald-500 transition-all"
                 >
                   <input
                     type="text"
@@ -4442,7 +4493,7 @@ function SupportTicketsSection() {
                     onChange={(e) => setReply(e.target.value)}
                     placeholder={ticketDetails.status === "RESOLVED" ? "This ticket consists of a resolved conversation..." : "Type your reply to the customer..."}
                     disabled={ticketDetails.status === "RESOLVED" || isSending}
-                    className="flex-1 bg-transparent px-4 py-3 outline-none text-sm placeholder:text-gray-400 font-medium text-stone-900"
+                    className="flex-1 bg-transparent px-4 py-3 outline-none text-sm placeholder:text-gray-400 font-medium text-foreground"
                   />
                   <button
                     type="submit"
@@ -4463,8 +4514,9 @@ function SupportTicketsSection() {
 }
 
 // Bookings Management Section Component
-function BookingsSection() {
-  const [searchQuery, setSearchQuery] = useState("");
+function BookingsSection({ type, userId: explicitUserId }: { type?: "FLIGHT" | "TOUR", userId?: string }) {
+  const { adminSearchQuery, setAdminSearchQuery, setAdminSection } = useVistaStore();
+  const [searchQuery, setSearchQuery] = useState(adminSearchQuery || "");
   const [bookings, setBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const { notifyBookingStatusChanged } = useRealtime();
@@ -4472,7 +4524,9 @@ function BookingsSection() {
   const loadBookings = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/bookings?userId=ALL");
+      const targetUserId = explicitUserId || "ALL";
+      const endpoint = type ? `/api/bookings?userId=${encodeURIComponent(targetUserId)}&type=${type}` : `/api/bookings?userId=${encodeURIComponent(targetUserId)}`;
+      const res = await fetch(endpoint);
       const data = await res.json();
       if (data.success) {
         setBookings(data.bookings);
@@ -4487,7 +4541,20 @@ function BookingsSection() {
 
   useEffect(() => {
     loadBookings();
-  }, []);
+  }, [type]);
+
+  useEffect(() => {
+    if (adminSearchQuery) {
+      setSearchQuery(adminSearchQuery);
+      // Clear after applying to avoid search staying forever
+      // setAdminSearchQuery(""); 
+    }
+  }, [adminSearchQuery]);
+
+  const handleSearchChange = (val: string) => {
+    setSearchQuery(val);
+    if (adminSearchQuery) setAdminSearchQuery(""); // Clear global search if user starts typing
+  };
 
   const handleUpdateStatus = async (bookingId: string, status: string, userId: string) => {
     try {
@@ -4522,24 +4589,28 @@ function BookingsSection() {
     <div className="w-full text-left">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8 px-1">
         <div>
-          <h2 className="text-xl md:text-3xl font-bold text-stone-900">Bookings Management</h2>
-          <p className="text-gray-500 text-sm md:text-base mt-1">Manage global flight and tour reservations</p>
+          <h2 className="text-xl md:text-3xl font-bold text-foreground">
+            {type === "FLIGHT" ? "Flight Bookings" : type === "TOUR" ? "Tour Package Bookings" : "Bookings Management"}
+          </h2>
+          <p className="text-gray-500 text-sm md:text-base mt-1">
+            {type === "FLIGHT" ? "Manage specific flight reservations" : type === "TOUR" ? "Manage destination tour reservations" : "Manage global flight and tour reservations"}
+          </p>
         </div>
         <div className="flex gap-4">
           <Input 
             placeholder="Search booking ID..." 
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => handleSearchChange(e.target.value)}
             className="w-full sm:w-64"
           />
         </div>
       </div>
 
-      <div className="bg-white rounded-[32px] shadow-sm ring-1 ring-gray-100 overflow-hidden border border-gray-50">
+      <div className="bg-card rounded-[32px] shadow-sm ring-1 ring-border overflow-hidden border border-border">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-gray-50 bg-gray-50/30">
+              <tr className="border-b border-border bg-muted/20">
                 <th className="px-8 py-5 text-[11px] font-black uppercase tracking-widest text-gray-400">Booking Ref</th>
                 <th className="px-8 py-5 text-[11px] font-black uppercase tracking-widest text-gray-400">Type</th>
                 <th className="px-8 py-5 text-[11px] font-black uppercase tracking-widest text-gray-400">Details</th>
@@ -4548,7 +4619,7 @@ function BookingsSection() {
                 <th className="px-8 py-5 text-[11px] font-black uppercase tracking-widest text-gray-400 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-border">
               {loading ? (
                 <tr>
                   <td colSpan={6} className="px-8 py-20 text-center">
@@ -4562,11 +4633,11 @@ function BookingsSection() {
               ) : filteredBookings.map((booking) => (
                 <tr
                   key={booking.id}
-                  className="group hover:bg-gray-50/50 transition-colors"
+                  className="group hover:bg-muted/50 transition-colors"
                 >
                   <td className="px-8 py-5">
                     <div className="flex items-center gap-2">
-                       <span className="font-bold text-stone-900 text-sm">{booking.bookingId}</span>
+                       <span className="font-bold text-foreground text-sm">{booking.bookingId}</span>
                     </div>
                   </td>
                   <td className="px-8 py-5">
@@ -4580,17 +4651,17 @@ function BookingsSection() {
                   <td className="px-8 py-5">
                      {booking.type === "FLIGHT" ? (
                         <div>
-                          <p className="font-bold text-stone-900 text-sm">{booking.fromCity} → {booking.toCity}</p>
+                          <p className="font-bold text-foreground text-sm">{booking.fromCity} → {booking.toCity}</p>
                           <p className="text-gray-500 text-xs">Passengers: {booking.passengers}</p>
                         </div>
                      ) : (
                         <div>
-                          <p className="font-bold text-stone-900 text-sm">{booking.hotelName}</p>
+                          <p className="font-bold text-foreground text-sm">{booking.hotelName}</p>
                           <p className="text-gray-500 text-xs">Guests: {booking.guests}</p>
                         </div>
                      )}
                   </td>
-                  <td className="px-8 py-5 text-center text-stone-900 font-bold">${booking.totalAmount.toLocaleString()}</td>
+                  <td className="px-8 py-5 text-center text-foreground font-bold">${booking.totalAmount.toLocaleString()}</td>
                   <td className="px-8 py-5 text-center">
                     <span className={cn(
                       "px-3 py-1 rounded-full text-xs font-bold",
@@ -4602,7 +4673,17 @@ function BookingsSection() {
                     </span>
                   </td>
                   <td className="px-8 py-5 text-right">
-                    <div className="flex items-center justify-end gap-2">
+                      {booking.status === "CONFIRMED" && (
+                        <button
+                          title="View Ticket"
+                          className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all"
+                          onClick={() => {
+                            setAdminSection("tickets");
+                          }}
+                        >
+                          <Ticket className="w-5 h-5" />
+                        </button>
+                      )}
                       {booking.status === "PENDING" && (
                         <button
                           title="Confirm Booking"
@@ -4639,6 +4720,8 @@ function BookingsSection() {
 
 // Destinations/Inventory Management Section Component
 function DestinationsSection() {
+  const { getCurrencySymbol, convertFromUSD } = useVistaStore();
+  const currencySymbol = getCurrencySymbol();
   const [destinations, setDestinations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -4788,7 +4871,7 @@ function DestinationsSection() {
     <div className="w-full text-left">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8 px-1">
         <div>
-          <h2 className="text-xl md:text-3xl font-bold text-stone-900">Destination Inventory</h2>
+          <h2 className="text-xl md:text-3xl font-bold text-foreground">Destination Inventory</h2>
           <p className="text-gray-500 text-sm md:text-base mt-1">Manage tours, packages and global offerings</p>
         </div>
         <button
@@ -4806,23 +4889,23 @@ function DestinationsSection() {
             <Loader2 className="w-10 h-10 animate-spin text-emerald-600" />
           </div>
         ) : destinations.length === 0 ? (
-          <div className="col-span-full py-20 text-center bg-white rounded-[32px] border border-gray-100 text-gray-400">
+          <div className="col-span-full py-20 text-center bg-card rounded-[32px] border border-border/50 text-gray-400">
             No destinations in inventory.
           </div>
         ) : destinations.map((dest) => (
-          <div key={dest.id} className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden group hover:shadow-xl transition-all duration-300">
+          <div key={dest.id} className="bg-card rounded-[32px] border border-border/50 shadow-sm overflow-hidden group hover:shadow-xl transition-all duration-300">
             <div className="relative h-48">
               <img src={dest.image} alt={dest.title} className="w-full h-full object-cover" />
               <div className="absolute top-4 right-4 flex gap-2">
                 <button 
                   onClick={() => handleOpenModal(dest)}
-                  className="p-2 bg-white/90 backdrop-blur-sm rounded-xl text-stone-900 shadow-sm hover:bg-white transition-all"
+                  className="p-2 bg-card/90 backdrop-blur-sm rounded-xl text-foreground shadow-sm hover:bg-card transition-all"
                 >
                   <Pencil className="w-4 h-4" />
                 </button>
                 <button 
                   onClick={() => handleDelete(dest.id)}
-                  className="p-2 bg-white/90 backdrop-blur-sm rounded-xl text-red-600 shadow-sm hover:bg-white transition-all"
+                  className="p-2 bg-card/90 backdrop-blur-sm rounded-xl text-red-600 shadow-sm hover:bg-card transition-all"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -4836,12 +4919,14 @@ function DestinationsSection() {
             <div className="p-6">
               <div className="flex justify-between items-start mb-2">
                 <div>
-                  <h3 className="font-bold text-stone-900 text-lg line-clamp-1">{dest.title}</h3>
+                  <h3 className="font-bold text-foreground text-lg line-clamp-1">{dest.title}</h3>
                   <p className="text-gray-500 text-xs flex items-center gap-1">
                     <MapPin className="w-3 h-3" /> {dest.location}
                   </p>
                 </div>
-                <p className="text-emerald-600 font-bold text-lg">${dest.price.toLocaleString()}</p>
+                <p className="text-emerald-600 font-bold text-lg">
+                  {currencySymbol}{convertFromUSD(dest.price).toLocaleString()}
+                </p>
               </div>
               <p className="text-gray-600 text-sm line-clamp-2 mb-4">{dest.description}</p>
               <div className="flex items-center justify-between text-xs text-stone-400 font-bold uppercase tracking-widest border-t border-gray-50 pt-4">
@@ -4857,7 +4942,7 @@ function DestinationsSection() {
         <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto rounded-[32px] border-none p-0">
           <div className="p-8">
             <DialogHeader className="mb-8">
-              <DialogTitle className="text-2xl font-bold text-stone-900">
+              <DialogTitle className="text-2xl font-bold text-foreground">
                 {editingDest ? "Edit Destination" : "Add New Destination"}
               </DialogTitle>
               <DialogDescription className="text-gray-500">
@@ -4937,8 +5022,8 @@ function DestinationsSection() {
               </div>
 
               {/* Dynamic Options Sections */}
-              <div className="space-y-6 bg-stone-50 p-6 rounded-[24px]">
-                <h3 className="font-bold text-stone-900 flex items-center gap-2">
+              <div className="space-y-6 bg-muted/30 p-6 rounded-[24px]">
+                <h3 className="font-bold text-foreground flex items-center gap-2">
                   <Car className="w-4 h-4 text-emerald-600" />
                   Transport Options
                 </h3>
@@ -4953,7 +5038,7 @@ function DestinationsSection() {
                           newOpts[i].label = e.target.value;
                           setFormData({...formData, transportOptions: newOpts});
                         }}
-                        className="rounded-xl bg-white"
+                        className="rounded-xl bg-card"
                       />
                       <Input 
                         type="number" 
@@ -4964,7 +5049,7 @@ function DestinationsSection() {
                           newOpts[i].price = parseInt(e.target.value) || 0;
                           setFormData({...formData, transportOptions: newOpts});
                         }}
-                        className="rounded-xl bg-white w-24"
+                        className="rounded-xl bg-card w-24"
                       />
                       <Button 
                         type="button" 
@@ -4991,8 +5076,8 @@ function DestinationsSection() {
                 </div>
               </div>
 
-              <div className="space-y-6 bg-stone-50 p-6 rounded-[24px]">
-                <h3 className="font-bold text-stone-900 flex items-center gap-2">
+              <div className="space-y-6 bg-muted/30 p-6 rounded-[24px]">
+                <h3 className="font-bold text-foreground flex items-center gap-2">
                   <Hotel className="w-4 h-4 text-emerald-600" />
                   Accommodation Options
                 </h3>
@@ -5007,7 +5092,7 @@ function DestinationsSection() {
                           newOpts[i].label = e.target.value;
                           setFormData({...formData, accommodationOptions: newOpts});
                         }}
-                        className="rounded-xl bg-white"
+                        className="rounded-xl bg-card"
                       />
                       <Input 
                         type="number" 
@@ -5018,7 +5103,7 @@ function DestinationsSection() {
                           newOpts[i].priceAdjustment = parseInt(e.target.value) || 0;
                           setFormData({...formData, accommodationOptions: newOpts});
                         }}
-                        className="rounded-xl bg-white w-24"
+                        className="rounded-xl bg-card w-24"
                       />
                       <Button 
                         type="button" 
@@ -5045,8 +5130,8 @@ function DestinationsSection() {
                 </div>
               </div>
 
-              <div className="space-y-6 bg-stone-50 p-6 rounded-[24px]">
-                <h3 className="font-bold text-stone-900 flex items-center gap-2">
+              <div className="space-y-6 bg-muted/30 p-6 rounded-[24px]">
+                <h3 className="font-bold text-foreground flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-emerald-600" />
                   Optional Add-ons
                 </h3>
@@ -5061,7 +5146,7 @@ function DestinationsSection() {
                           newOpts[i].label = e.target.value;
                           setFormData({...formData, addOns: newOpts});
                         }}
-                        className="rounded-xl bg-white"
+                        className="rounded-xl bg-card"
                       />
                       <Input 
                         type="number" 
@@ -5072,7 +5157,7 @@ function DestinationsSection() {
                           newOpts[i].price = parseInt(e.target.value) || 0;
                           setFormData({...formData, addOns: newOpts});
                         }}
-                        className="rounded-xl bg-white w-24"
+                        className="rounded-xl bg-card w-24"
                       />
                       <Button 
                         type="button" 
@@ -5151,7 +5236,7 @@ function DestinationsSection() {
                 </div>
                 
                 {formData.image && (
-                  <div className="relative h-40 w-full rounded-2xl overflow-hidden group border border-gray-100">
+                  <div className="relative h-40 w-full rounded-2xl overflow-hidden group border border-border/50">
                     <img src={formData.image} className="w-full h-full object-cover" alt="Preview" />
                     <button 
                       type="button"
@@ -5194,7 +5279,7 @@ function DestinationsSection() {
                 <Label htmlFor="isActive" className="text-sm font-medium">Show in public listings</Label>
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+              <div className="flex justify-end gap-3 pt-4 border-t border-border/50">
                 <Button 
                   type="button" 
                   variant="ghost" 
@@ -5287,7 +5372,7 @@ function ReviewsSection() {
   return (
     <div className="w-full text-left">
       <div className="mb-8">
-        <h2 className="text-xl md:text-3xl font-bold text-stone-900">Customer Reviews</h2>
+        <h2 className="text-xl md:text-3xl font-bold text-foreground">Customer Reviews</h2>
         <p className="text-gray-500 text-sm md:text-base mt-1">Manage and moderate customer reviews</p>
       </div>
 
@@ -5299,13 +5384,13 @@ function ReviewsSection() {
           { label: "Pending Approval", value: stats.pending, sub: "requires action", icon: Clock, color: "text-amber-600" },
           { label: "5-Star Reviews", value: `${stats.fiveStars}%`, sub: "satisfaction", icon: Crown, color: "text-indigo-600" }
         ].map((s, i) => (
-          <div key={i} className="bg-white p-6 rounded-[24px] border border-gray-100 shadow-sm">
+          <div key={i} className="bg-card p-6 rounded-[24px] border border-border/50 shadow-sm">
             <div className="flex justify-between items-start mb-4">
-              <div className={`p-3 rounded-2xl bg-gray-50 ${s.color}`}>
+              <div className={`p-3 rounded-2xl bg-muted/30 ${s.color}`}>
                 <s.icon className="w-5 h-5" />
               </div>
             </div>
-            <p className="text-3xl font-black text-stone-900 leading-none">{s.value}</p>
+            <p className="text-3xl font-black text-foreground leading-none">{s.value}</p>
             <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mt-2">{s.label}</p>
             {s.label === "Average Rating" && (
               <div className="flex gap-0.5 mt-2">
@@ -5321,18 +5406,18 @@ function ReviewsSection() {
         ))}
       </div>
 
-      <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden">
-        <div className="p-6 md:p-8 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <h3 className="font-bold text-stone-900 text-lg">All Reviews</h3>
-          <div className="flex items-center gap-2 p-1 bg-gray-50 rounded-xl w-fit">
+      <div className="bg-card rounded-[32px] border border-border/50 shadow-sm overflow-hidden">
+        <div className="p-6 md:p-8 border-b border-border/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <h3 className="font-bold text-foreground text-lg">All Reviews</h3>
+          <div className="flex items-center gap-2 p-1 bg-muted/30 rounded-xl w-fit">
             {(["ALL", "PENDING", "APPROVED"] as const).map(f => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
                 className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
                   filter === f 
-                    ? "bg-white text-stone-900 shadow-sm" 
-                    : "text-gray-500 hover:text-stone-900"
+                    ? "bg-card text-foreground shadow-sm" 
+                    : "text-gray-500 hover:text-foreground"
                 }`}
               >
                 {f.charAt(0) + f.slice(1).toLowerCase()}
@@ -5356,7 +5441,7 @@ function ReviewsSection() {
               className={`p-6 rounded-[24px] border ${
                 r.status === "PENDING" 
                   ? "bg-amber-50/30 border-amber-100" 
-                  : "bg-white border-gray-100"
+                  : "bg-card border-border/50"
               } transition-all relative group`}
             >
               <div className="flex flex-col md:flex-row gap-4">
@@ -5372,7 +5457,7 @@ function ReviewsSection() {
                   <div className="flex justify-between items-start mb-1">
                     <div>
                       <div className="mb-2">
-                        <p className="font-bold text-stone-900">{r.user.firstName} {r.user.lastName}</p>
+                        <p className="font-bold text-foreground">{r.user.firstName} {r.user.lastName}</p>
                         <p className="text-xs text-gray-400 font-medium">
                           {r.destination?.title || "General Feedback"}
                         </p>
@@ -5385,7 +5470,7 @@ function ReviewsSection() {
                             />
                         ))}
                       </div>
-                      <h4 className="font-bold text-stone-900 text-base">{r.title}</h4>
+                      <h4 className="font-bold text-foreground text-base">{r.title}</h4>
                     </div>
                     {r.status === "PENDING" && (
                       <span className="px-3 py-1 bg-amber-100 text-amber-700 text-[10px] font-black uppercase tracking-widest rounded-full">
@@ -5515,16 +5600,16 @@ function CalendarSection() {
   return (
     <div className="w-full text-left">
       <div className="mb-6 md:mb-8 text-left">
-        <h2 className="text-xl md:text-3xl font-bold text-stone-900">Booking Calendar</h2>
+        <h2 className="text-xl md:text-3xl font-bold text-foreground">Booking Calendar</h2>
         <p className="text-gray-500 text-sm md:text-base mt-2">View and manage bookings by date</p>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-6 items-start mb-6">
         {/* Calendar Card */}
-        <div className="flex-1 bg-white rounded-2xl md:rounded-[24px] shadow-sm ring-1 ring-gray-100 w-full overflow-hidden">
+        <div className="flex-1 bg-card rounded-2xl md:rounded-[24px] shadow-sm ring-1 ring-gray-100 w-full overflow-hidden">
           <div className="p-6 md:p-8 flex flex-col h-full">
             <div className="flex items-center justify-between mb-8">
-              <h3 className="text-lg md:text-xl font-bold text-stone-900">
+              <h3 className="text-lg md:text-xl font-bold text-foreground">
                 {currentDate.toLocaleDateString([], { month: 'long', year: 'numeric' })}
               </h3>
               <div className="flex gap-2">
@@ -5557,8 +5642,8 @@ function CalendarSection() {
                     onClick={() => setSelectedDate(day)}
                     className={cn(
                       "flex flex-col relative p-2 md:p-3 aspect-[4/3] md:h-[100px] rounded-xl transition-all cursor-pointer border-2",
-                      isSelected ? "border-emerald-200 bg-white shadow-sm ring-1 ring-emerald-50" : "border-transparent hover:bg-stone-50",
-                      hasBookings && !isSelected ? "bg-stone-50/50" : ""
+                      isSelected ? "border-emerald-200 bg-card shadow-sm ring-1 ring-emerald-50" : "border-transparent hover:bg-muted/30",
+                      hasBookings && !isSelected ? "bg-muted/30/50" : ""
                     )}
                   >
                     <span className={cn("text-sm md:text-base font-semibold", isSelected ? "text-emerald-700" : "text-stone-700")}>
@@ -5589,9 +5674,9 @@ function CalendarSection() {
         </div>
 
         {/* Day's Bookings Panel */}
-        <div className="w-full lg:w-[380px] shrink-0 bg-white rounded-2xl md:rounded-[24px] shadow-sm ring-1 ring-gray-100 overflow-hidden">
+        <div className="w-full lg:w-[380px] shrink-0 bg-card rounded-2xl md:rounded-[24px] shadow-sm ring-1 ring-gray-100 overflow-hidden">
           <div className="p-6 md:p-8">
-            <h3 className="text-lg md:text-xl font-bold text-stone-900">Day&apos;s Bookings</h3>
+            <h3 className="text-lg md:text-xl font-bold text-foreground">Day&apos;s Bookings</h3>
             <p className="text-sm text-gray-500 mt-1 mb-6">
               {new Date(currentDate.getFullYear(), currentDate.getMonth(), selectedDate)
                 .toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' })}
@@ -5608,11 +5693,11 @@ function CalendarSection() {
                       {b.status}
                     </span>
                   </div>
-                  <h4 className="font-bold text-stone-900 text-[14px] md:text-[15px]">{b.customer}</h4>
+                  <h4 className="font-bold text-foreground text-[14px] md:text-[15px]">{b.customer}</h4>
                   <p className="text-xs font-medium text-gray-500 mt-1.5">{b.detail}</p>
                 </div>
               )) : (
-                <div className="text-center py-10 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                <div className="text-center py-10 bg-muted/30 rounded-xl border border-dashed border-gray-200">
                   <Calendar className="w-8 h-8 text-gray-300 mx-auto mb-2" />
                   <p className="text-sm text-gray-500 font-medium">No bookings on this day.</p>
                 </div>
@@ -5623,9 +5708,9 @@ function CalendarSection() {
       </div>
 
       {/* Weekly Overview Panel */}
-      <div className="w-full bg-white rounded-2xl md:rounded-[24px] shadow-sm ring-1 ring-gray-100 overflow-hidden">
+      <div className="w-full bg-card rounded-2xl md:rounded-[24px] shadow-sm ring-1 ring-gray-100 overflow-hidden">
         <div className="p-6 md:p-8">
-          <h3 className="text-lg md:text-xl font-bold text-stone-900 mb-6">Weekly Overview</h3>
+          <h3 className="text-lg md:text-xl font-bold text-foreground mb-6">Weekly Overview</h3>
           <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-3 md:gap-4">
             {weeklyStats.map((stat, i) => (
               <div
@@ -5636,7 +5721,7 @@ function CalendarSection() {
                 )}
               >
                 <div className="text-center w-full">
-                  <p className="text-sm font-semibold text-stone-900 mb-2">{stat.day}</p>
+                  <p className="text-sm font-semibold text-foreground mb-2">{stat.day}</p>
                   <p className="text-2xl md:text-3xl font-bold text-emerald-600 leading-none">{stat.count}</p>
                   <p className="text-[10px] md:text-xs text-gray-500 mt-1">bookings</p>
                 </div>
@@ -5707,7 +5792,7 @@ function LegalSection() {
   return (
     <div className="w-full text-left">
       <div className="mb-8 px-1">
-        <h2 className="text-xl md:text-3xl font-bold text-stone-900">Legal Documents</h2>
+        <h2 className="text-xl md:text-3xl font-bold text-foreground">Legal Documents</h2>
         <p className="text-gray-500 text-sm md:text-base mt-1">Manage Privacy Policy and Terms of Service content</p>
       </div>
 
@@ -5718,8 +5803,8 @@ function LegalSection() {
           className={cn(
             "px-8 py-2.5 rounded-xl text-sm font-bold transition-all duration-200",
             activeTab === 'privacy'
-              ? "bg-white text-stone-900 shadow-md"
-              : "text-gray-500 hover:text-stone-900"
+              ? "bg-card text-foreground shadow-md"
+              : "text-gray-500 hover:text-foreground"
           )}
         >
           Privacy Policy
@@ -5729,17 +5814,17 @@ function LegalSection() {
           className={cn(
             "px-8 py-2.5 rounded-xl text-sm font-bold transition-all duration-200",
             activeTab === 'terms'
-              ? "bg-white text-stone-900 shadow-md"
-              : "text-gray-500 hover:text-stone-900"
+              ? "bg-card text-foreground shadow-md"
+              : "text-gray-500 hover:text-foreground"
           )}
         >
           Terms of Service
         </button>
       </div>
 
-      <div className="bg-white rounded-[32px] shadow-sm ring-1 ring-gray-100 p-8 md:p-10 border border-gray-50">
+      <div className="bg-card rounded-[32px] shadow-sm ring-1 ring-gray-100 p-8 md:p-10 border border-gray-50">
         <div className="flex items-center justify-between mb-10">
-          <h3 className="text-xl font-bold text-stone-900">
+          <h3 className="text-xl font-bold text-foreground">
             {activeTab === 'privacy' ? 'Privacy Policy' : 'Terms of Service'} Sections
           </h3>
           <button
@@ -5753,7 +5838,7 @@ function LegalSection() {
 
         <div className="space-y-6">
           {currentSections.map((section, index) => (
-            <div key={index} className="p-6 md:p-8 bg-gray-50/50 rounded-[28px] relative border border-gray-100 group transition-all hover:bg-white hover:shadow-xl hover:shadow-gray-100/50 hover:border-emerald-200">
+            <div key={index} className="p-6 md:p-8 bg-muted/50 rounded-[28px] relative border border-border/50 group transition-all hover:bg-card hover:shadow-xl hover:shadow-gray-100/50 hover:border-emerald-200">
               <div className="flex items-center justify-between mb-4">
                 <span className="text-sm font-bold text-gray-400">Section {index + 1}</span>
                 <button
@@ -5771,7 +5856,7 @@ function LegalSection() {
                     type="text"
                     value={section.title}
                     onChange={(e) => updateSection(index, 'title', e.target.value)}
-                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all font-medium text-stone-900"
+                    className="w-full px-4 py-3 bg-card border border-gray-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all font-medium text-foreground"
                     placeholder="Enter title"
                   />
                 </div>
@@ -5781,7 +5866,7 @@ function LegalSection() {
                     rows={4}
                     value={section.content}
                     onChange={(e) => updateSection(index, 'content', e.target.value)}
-                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all font-medium text-stone-900 leading-relaxed resize-none"
+                    className="w-full px-4 py-3 bg-card border border-gray-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all font-medium text-foreground leading-relaxed resize-none"
                     placeholder="Enter content"
                   />
                 </div>
@@ -5868,7 +5953,7 @@ function VouchersSection() {
     <div className="space-y-6">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h2 className="text-2xl font-bold text-stone-900 tracking-tight flex items-center gap-2">
+          <h2 className="text-2xl font-bold text-foreground tracking-tight flex items-center gap-2">
             Voucher Management
             <span className="flex items-center justify-center bg-amber-100 text-amber-700 text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-full font-black">
               Internal Tools
@@ -5889,7 +5974,7 @@ function VouchersSection() {
         {vouchers.map((voucher) => (
           <Card key={voucher.id} className={cn(
             "rounded-[32px] border-none shadow-xl transition-all hover:shadow-2xl overflow-hidden relative group",
-            voucher.status === "expired" ? "opacity-60 saturate-50" : "bg-white"
+            voucher.status === "expired" ? "opacity-60 saturate-50" : "bg-card"
           )}>
             {voucher.applicableToUser && (
               <div className="absolute top-4 right-4 z-10">
@@ -5909,19 +5994,19 @@ function VouchersSection() {
                   <Tag className="w-7 h-7" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-stone-900 leading-tight">{voucher.title}</h3>
+                  <h3 className="text-lg font-bold text-foreground leading-tight">{voucher.title}</h3>
                   <p className="text-xs font-black uppercase tracking-widest text-gray-400 mt-1">{voucher.applicableTo} ONLY</p>
                 </div>
               </div>
 
-              <div className="bg-stone-50 rounded-2xl p-4 border border-stone-100 mb-6">
+              <div className="bg-muted/30 rounded-2xl p-4 border border-border/50 mb-6">
                 <div className="flex items-center justify-between mb-4">
                   <code className="text-xl font-black text-emerald-600 font-mono tracking-tighter tracking-widest">
                     {voucher.code}
                   </code>
                   <div className="text-right">
                     <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Discount</p>
-                    <p className="text-2xl font-black text-stone-900">
+                    <p className="text-2xl font-black text-foreground">
                       {voucher.discountType === "percentage" ? `${voucher.discountValue}%` : `$${voucher.discountValue}`}
                     </p>
                   </div>
@@ -5932,11 +6017,11 @@ function VouchersSection() {
               <div className="grid grid-cols-2 gap-4 mb-8">
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Min Purchase</p>
-                  <p className="text-sm font-bold text-stone-900">${voucher.minPurchase}</p>
+                  <p className="text-sm font-bold text-foreground">${voucher.minPurchase}</p>
                 </div>
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Expires</p>
-                  <p className="text-sm font-bold text-stone-900">{new Date(voucher.validUntil).toLocaleDateString()}</p>
+                  <p className="text-sm font-bold text-foreground">{new Date(voucher.validUntil).toLocaleDateString()}</p>
                 </div>
               </div>
 
@@ -5975,7 +6060,7 @@ function VouchersSection() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="p-8 md:p-12 bg-white">
+          <div className="p-8 md:p-12 bg-card">
             <form onSubmit={handleSubmit} className="space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="space-y-2">
@@ -5984,7 +6069,7 @@ function VouchersSection() {
                     placeholder="e.g. SUMMER2024" 
                     value={formData.code} 
                     onChange={e => setFormData({...formData, code: e.target.value.toUpperCase()})}
-                    className="h-14 rounded-2xl border-stone-100 bg-stone-50/50 font-black text-stone-900 uppercase"
+                    className="h-14 rounded-2xl border-border/50 bg-muted/30/50 font-black text-foreground uppercase"
                     required 
                   />
                 </div>
@@ -5993,7 +6078,7 @@ function VouchersSection() {
                   <select 
                     value={formData.applicableTo}
                     onChange={e => setFormData({...formData, applicableTo: e.target.value as any})}
-                    className="w-full h-14 rounded-2xl border-stone-100 bg-stone-50/50 px-4 font-bold text-stone-900 focus:ring-2 focus:ring-emerald-500 outline-none"
+                    className="w-full h-14 rounded-2xl border-border/50 bg-muted/30/50 px-4 font-bold text-foreground focus:ring-2 focus:ring-emerald-500 outline-none"
                   >
                     <option value="all">All Services</option>
                     <option value="flights">Flights Only</option>
@@ -6008,7 +6093,7 @@ function VouchersSection() {
                   placeholder="e.g. Early Bird Summer Discount" 
                   value={formData.title} 
                   onChange={e => setFormData({...formData, title: e.target.value})}
-                  className="h-14 rounded-2xl border-stone-100 bg-stone-50/50 font-bold text-stone-900"
+                  className="h-14 rounded-2xl border-border/50 bg-muted/30/50 font-bold text-foreground"
                   required 
                 />
               </div>
@@ -6019,7 +6104,7 @@ function VouchersSection() {
                   placeholder="Describe the offer and any restrictions..." 
                   value={formData.description}
                   onChange={e => setFormData({...formData, description: e.target.value})}
-                  className="w-full h-24 rounded-2xl border-stone-100 bg-stone-50/50 px-4 py-3 font-medium text-stone-900 focus:ring-2 focus:ring-emerald-500 outline-none resize-none"
+                  className="w-full h-24 rounded-2xl border-border/50 bg-muted/30/50 px-4 py-3 font-medium text-foreground focus:ring-2 focus:ring-emerald-500 outline-none resize-none"
                   required 
                 />
               </div>
@@ -6027,18 +6112,18 @@ function VouchersSection() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="space-y-2">
                    <Label className="text-xs font-black uppercase tracking-widest text-stone-500 ml-1">Discount Type</Label>
-                   <div className="flex bg-stone-50 p-1 rounded-2xl border border-stone-100">
+                   <div className="flex bg-muted/30 p-1 rounded-2xl border border-border/50">
                      <button
                        type="button"
                        onClick={() => setFormData({...formData, discountType: 'percentage'})}
-                       className={cn("flex-1 h-12 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all", formData.discountType === 'percentage' ? "bg-white shadow-sm text-stone-900" : "text-stone-400")}
+                       className={cn("flex-1 h-12 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all", formData.discountType === 'percentage' ? "bg-card shadow-sm text-foreground" : "text-stone-400")}
                      >
                        Percentage
                      </button>
                      <button
                        type="button"
                        onClick={() => setFormData({...formData, discountType: 'fixed'})}
-                       className={cn("flex-1 h-12 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all", formData.discountType === 'fixed' ? "bg-white shadow-sm text-stone-900" : "text-stone-400")}
+                       className={cn("flex-1 h-12 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all", formData.discountType === 'fixed' ? "bg-card shadow-sm text-foreground" : "text-stone-400")}
                      >
                        Fixed Amount
                      </button>
@@ -6052,7 +6137,7 @@ function VouchersSection() {
                     type="number" 
                     value={formData.discountValue} 
                     onChange={e => setFormData({...formData, discountValue: parseInt(e.target.value) || 0})}
-                    className="h-14 rounded-2xl border-stone-100 bg-stone-50/50 font-black text-stone-900 text-center text-xl"
+                    className="h-14 rounded-2xl border-border/50 bg-muted/30/50 font-black text-foreground text-center text-xl"
                     required 
                   />
                 </div>
@@ -6065,7 +6150,7 @@ function VouchersSection() {
                     type="number" 
                     value={formData.minPurchase} 
                     onChange={e => setFormData({...formData, minPurchase: parseInt(e.target.value) || 0})}
-                    className="h-14 rounded-2xl border-stone-100 bg-stone-50/50 font-black text-stone-900"
+                    className="h-14 rounded-2xl border-border/50 bg-muted/30/50 font-black text-foreground"
                     required 
                   />
                 </div>
@@ -6075,7 +6160,7 @@ function VouchersSection() {
                     placeholder="Empty for all users"
                     value={formData.applicableToUser} 
                     onChange={e => setFormData({...formData, applicableToUser: e.target.value})}
-                    className="h-14 rounded-2xl border-stone-100 bg-stone-50/50 font-medium text-stone-900"
+                    className="h-14 rounded-2xl border-border/50 bg-muted/30/50 font-medium text-foreground"
                   />
                 </div>
               </div>
@@ -6217,12 +6302,12 @@ function AdminDashboard() {
   // Redirect if not authenticated
   if (!isAuthenticated) {
     return (
-      <section className="pt-20 min-h-screen flex items-center justify-center bg-stone-50">
+      <section className="pt-20 min-h-screen flex items-center justify-center bg-muted/30">
         <div className="text-center p-8">
           <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
             <Shield className="w-10 h-10 text-red-500" />
           </div>
-          <h1 className="text-3xl font-bold text-stone-900 mb-4">Access Denied</h1>
+          <h1 className="text-3xl font-bold text-foreground mb-4">Access Denied</h1>
           <p className="text-gray-500 mb-8 max-w-md">
             You must be signed in to access the admin dashboard. Please sign in to continue.
           </p>
@@ -6329,18 +6414,18 @@ function AdminDashboard() {
 
         {/* Main Content */}
         <main className={cn(
-          "flex-1 bg-stone-50 p-4 md:p-6 lg:p-8 overflow-x-hidden transition-all duration-300",
+          "flex-1 bg-background p-4 md:p-6 lg:p-8 overflow-x-hidden transition-all duration-300",
           desktopSidebarOpen && "lg:ml-64"
         )}>
           {/* Mobile Header */}
           <div className="lg:hidden flex items-center justify-between mb-2">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="p-2 rounded-lg bg-white shadow-md hover:bg-gray-50"
+              className="p-2 rounded-lg bg-card shadow-md hover:bg-muted/30"
             >
-              <Menu className="w-5 h-5 text-stone-900" />
+              <Menu className="w-5 h-5 text-foreground" />
             </button>
-            <h2 className="text-lg font-bold text-stone-900 font-serif italic">Vista.</h2>
+            <h2 className="text-lg font-bold text-foreground font-serif italic">Vista.</h2>
             <div className="w-9" /> {/* Spacer for centering */}
           </div>
 
@@ -6348,7 +6433,7 @@ function AdminDashboard() {
           <div className="hidden lg:flex items-center gap-3 mb-4">
             <button
               onClick={() => setDesktopSidebarOpen(!desktopSidebarOpen)}
-              className="p-2 rounded-lg bg-white shadow-md hover:bg-gray-50 transition-colors flex items-center gap-2"
+              className="p-2 rounded-lg bg-card shadow-md hover:bg-muted/30 transition-colors flex items-center gap-2"
               title={desktopSidebarOpen ? "Hide sidebar" : "Show sidebar"}
             >
               {desktopSidebarOpen ? (
@@ -6369,7 +6454,7 @@ function AdminDashboard() {
             <>
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 md:gap-4 mb-4 md:mb-8">
                 <div>
-                  <h1 className="text-xl md:text-3xl font-bold text-stone-900">Overview</h1>
+                  <h1 className="text-xl md:text-3xl font-bold text-foreground">Overview</h1>
                   <p className="text-gray-500 text-xs md:text-base">
                     Welcome back! Here's what's happening today.
                   </p>
@@ -6379,7 +6464,7 @@ function AdminDashboard() {
                     <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                     <Input
                       placeholder="Search..."
-                      className="pl-10 w-full sm:w-48 bg-white border-gray-200"
+                      className="pl-10 w-full sm:w-48 bg-card border-gray-200"
                     />
                   </div>
                 </div>
@@ -6398,7 +6483,7 @@ function AdminDashboard() {
                             <p className="text-xs md:text-sm text-gray-500 mb-0.5 md:mb-1">
                               {stat.title}
                             </p>
-                            <h3 className="text-lg md:text-3xl font-bold text-stone-900">
+                            <h3 className="text-lg md:text-3xl font-bold text-foreground">
                               {stat.value}
                             </h3>
                           </div>
@@ -6448,8 +6533,8 @@ function AdminDashboard() {
 
               {/* Recent Bookings Table */}
               <Card className="rounded-xl md:rounded-2xl shadow-lg border-0">
-                <CardHeader className="p-4 md:p-6 border-b border-gray-100 flex justify-between items-center">
-                  <h3 className="text-base md:text-lg font-bold text-stone-900">
+                <CardHeader className="p-4 md:p-6 border-b border-border/50 flex justify-between items-center">
+                  <h3 className="text-base md:text-lg font-bold text-foreground">
                     Recent Bookings
                   </h3>
                   <Button
@@ -6462,7 +6547,7 @@ function AdminDashboard() {
                 <CardContent className="p-0">
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[500px]">
-                      <thead className="bg-stone-50">
+                      <thead className="bg-muted/30">
                         <tr>
                           <th className="px-4 md:px-6 py-3 md:py-4 text-left text-[10px] md:text-xs font-semibold text-gray-500 uppercase">
                             Booking ID
@@ -6488,9 +6573,9 @@ function AdminDashboard() {
                         {recentBookings.map((booking, index) => (
                           <tr
                             key={index}
-                            className="hover:bg-stone-50 transition-colors"
+                            className="hover:bg-muted/30 transition-colors"
                           >
-                            <td className="px-4 md:px-6 py-3 md:py-4 text-xs md:text-sm font-medium text-stone-900">
+                            <td className="px-4 md:px-6 py-3 md:py-4 text-xs md:text-sm font-medium text-foreground">
                               {booking.id}
                             </td>
                             <td className="px-4 md:px-6 py-3 md:py-4 text-xs md:text-sm text-gray-600">
@@ -6502,7 +6587,7 @@ function AdminDashboard() {
                             <td className="px-4 md:px-6 py-3 md:py-4 text-xs md:text-sm text-gray-600 hidden md:table-cell">
                               {booking.date}
                             </td>
-                            <td className="px-4 md:px-6 py-3 md:py-4 text-xs md:text-sm font-semibold text-stone-900">
+                            <td className="px-4 md:px-6 py-3 md:py-4 text-xs md:text-sm font-semibold text-foreground">
                               {booking.amount}
                             </td>
                             <td className="px-4 md:px-6 py-3 md:py-4">
@@ -6529,13 +6614,13 @@ function AdminDashboard() {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 mt-6 md:mt-8">
                 {/* Active Vouchers Panel */}
                 <Card className="rounded-xl md:rounded-2xl shadow-lg border-0">
-                  <CardHeader className="p-4 md:p-6 border-b border-gray-100 flex flex-row justify-between items-center">
+                  <CardHeader className="p-4 md:p-6 border-b border-border/50 flex flex-row justify-between items-center">
                     <div className="flex items-center gap-2">
                       <div className="w-8 h-8 md:w-10 md:h-10 bg-amber-100 rounded-lg flex items-center justify-center">
                         <Gift className="w-4 h-4 md:w-5 md:h-5 text-amber-600" />
                       </div>
                       <div>
-                        <h3 className="text-base md:text-lg font-bold text-stone-900">
+                        <h3 className="text-base md:text-lg font-bold text-foreground">
                           Active Vouchers
                         </h3>
                         <p className="text-xs text-gray-500">{activeVouchers.length} vouchers available</p>
@@ -6552,7 +6637,7 @@ function AdminDashboard() {
                           >
                             <div className="flex justify-between items-start mb-2">
                               <div className="flex-1 min-w-0">
-                                <h4 className="font-semibold text-stone-900 text-sm md:text-base truncate">{voucher.title}</h4>
+                                <h4 className="font-semibold text-foreground text-sm md:text-base truncate">{voucher.title}</h4>
                                 <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{voucher.description}</p>
                               </div>
                               <span className={cn(
@@ -6566,7 +6651,7 @@ function AdminDashboard() {
                             </div>
                             <div className="flex items-center justify-between mt-3">
                               <div className="flex items-center gap-2">
-                                <code className="bg-white px-2 py-1 rounded-md text-xs md:text-sm font-mono font-bold text-amber-700 border border-amber-200">
+                                <code className="bg-card px-2 py-1 rounded-md text-xs md:text-sm font-mono font-bold text-amber-700 border border-amber-200">
                                   {voucher.code}
                                 </code>
                                 <Button
@@ -6603,13 +6688,13 @@ function AdminDashboard() {
 
                 {/* Loyalty Rewards Panel */}
                 <Card className="rounded-xl md:rounded-2xl shadow-lg border-0">
-                  <CardHeader className="p-4 md:p-6 border-b border-gray-100">
+                  <CardHeader className="p-4 md:p-6 border-b border-border/50">
                     <div className="flex items-center gap-2">
                       <div className="w-8 h-8 md:w-10 md:h-10 bg-purple-100 rounded-lg flex items-center justify-center">
                         <Crown className="w-4 h-4 md:w-5 md:h-5 text-purple-600" />
                       </div>
                       <div>
-                        <h3 className="text-base md:text-lg font-bold text-stone-900">
+                        <h3 className="text-base md:text-lg font-bold text-foreground">
                           Loyalty Rewards
                         </h3>
                         <p className="text-xs text-gray-500">Member since {loyaltyInfo?.memberSince ? new Date(loyaltyInfo.memberSince).toLocaleDateString() : 'N/A'}</p>
@@ -6628,7 +6713,7 @@ function AdminDashboard() {
                         </div>
                         <div>
                           <p className="text-xs text-gray-500 uppercase font-medium">Current Tier</p>
-                          <p className="text-lg md:text-xl font-bold text-stone-900">{loyaltyInfo.currentTier.name}</p>
+                          <p className="text-lg md:text-xl font-bold text-foreground">{loyaltyInfo.currentTier.name}</p>
                         </div>
                       </div>
                       <div className="text-right">
@@ -6659,15 +6744,15 @@ function AdminDashboard() {
 
                     {/* Points Stats */}
                     <div className="grid grid-cols-3 gap-2 md:gap-3 mb-4">
-                      <div className="bg-stone-50 rounded-lg p-2 md:p-3 text-center">
+                      <div className="bg-muted/30 rounded-lg p-2 md:p-3 text-center">
                         <p className="text-lg md:text-xl font-bold text-emerald-600">{loyaltyInfo.pointsPerDollar}x</p>
                         <p className="text-[10px] md:text-xs text-gray-500">Points per $</p>
                       </div>
-                      <div className="bg-stone-50 rounded-lg p-2 md:p-3 text-center">
+                      <div className="bg-muted/30 rounded-lg p-2 md:p-3 text-center">
                         <p className="text-lg md:text-xl font-bold text-blue-600">{loyaltyInfo.totalEarned.toLocaleString()}</p>
                         <p className="text-[10px] md:text-xs text-gray-500">Total Earned</p>
                       </div>
-                      <div className="bg-stone-50 rounded-lg p-2 md:p-3 text-center">
+                      <div className="bg-muted/30 rounded-lg p-2 md:p-3 text-center">
                         <p className="text-lg md:text-xl font-bold text-amber-600">{loyaltyInfo.totalRedeemed.toLocaleString()}</p>
                         <p className="text-[10px] md:text-xs text-gray-500">Redeemed</p>
                       </div>
@@ -6700,7 +6785,7 @@ function AdminDashboard() {
             <div className="text-center py-6 md:py-16">
               {adminSection === "bookings" && (
                 <div className="text-left py-0 w-full xl:max-w-7xl">
-                  <BookingsSection />
+                  <BookingsSection type="TOUR" userId={user?.id} />
                 </div>
               )}
               {adminSection === "messages" && (
@@ -6711,7 +6796,7 @@ function AdminDashboard() {
               {adminSection === "tickets" && (
                 <>
                   <Ticket className="w-10 h-10 md:w-16 md:h-16 text-gray-300 mx-auto mb-3 md:mb-4" />
-                  <h2 className="text-lg md:text-2xl font-bold text-stone-900 mb-1 md:mb-2">
+                  <h2 className="text-lg md:text-2xl font-bold text-foreground mb-1 md:mb-2">
                     E-Tickets Management
                   </h2>
                   <p className="text-gray-500 text-sm md:text-base">Generate and manage e-tickets</p>
@@ -6728,13 +6813,9 @@ function AdminDashboard() {
                 </div>
               )}
               {adminSection === "flight_bookings" && (
-                <>
-                  <Plane className="w-10 h-10 md:w-16 md:h-16 text-gray-300 mx-auto mb-3 md:mb-4" />
-                  <h2 className="text-lg md:text-2xl font-bold text-stone-900 mb-1 md:mb-2">
-                    Flight Bookings
-                  </h2>
-                  <p className="text-gray-500 text-sm md:text-base">Manage specific fight reservations</p>
-                </>
+                <div className="text-left py-0 w-full xl:max-w-7xl">
+                  <BookingsSection type="FLIGHT" userId={user?.id} />
+                </div>
               )}
               {adminSection === "support_tickets" && (
                 <div className="text-left py-0 w-full">
@@ -6769,7 +6850,7 @@ function AdminDashboard() {
               {adminSection === "settings" && (
                 <>
                   <Settings className="w-10 h-10 md:w-16 md:h-16 text-gray-300 mx-auto mb-3 md:mb-4" />
-                  <h2 className="text-lg md:text-2xl font-bold text-stone-900 mb-1 md:mb-2">
+                  <h2 className="text-lg md:text-2xl font-bold text-foreground mb-1 md:mb-2">
                     Settings
                   </h2>
                   <p className="text-gray-500 text-sm md:text-base">Configure system settings</p>
@@ -6789,17 +6870,36 @@ function AdminDashboard() {
 // ── Customer Settings Section ────────────────────────────────
 function CustomerSettingsSection() {
   const { user, logout } = useAuthStore()
-  const currency = useVistaStore((s) => s.currency)
-  const setCurrency = useVistaStore((s) => s.setCurrency)
+  const { 
+    currency, setCurrency, 
+    theme, setTheme,
+    language, setLanguage,
+    notifBooking, setNotifBooking,
+    notifPromo, setNotifPromo,
+    notifPrice, setNotifPrice,
+    notifReminder, setNotifReminder,
+    twoFAEnabled, setTwoFAEnabled
+  } = useVistaStore()
 
-  // 2FA toggle
-  const [twoFAEnabled, setTwoFAEnabled] = useState(false)
+  // Simplified Toggle for local use
+  const Toggle = ({ checked, onChange }: { checked: boolean; onChange: () => void }) => (
+    <button
+      type="button"
+      onClick={onChange}
+      className={cn(
+        "relative inline-flex h-5 w-10 items-center rounded-full transition-colors",
+        checked ? "bg-emerald-600" : "bg-gray-200"
+      )}
+    >
+      <span className={cn(
+        "inline-block h-4 w-4 transform rounded-full bg-card shadow transition-transform",
+        checked ? "translate-x-5" : "translate-x-0.5"
+      )} />
+    </button>
+  )
 
-  // Notification prefs
-  const [notifBooking, setNotifBooking] = useState(true)
-  const [notifPromo, setNotifPromo] = useState(true)
-  const [notifPrice, setNotifPrice] = useState(false)
-  const [notifReminder, setNotifReminder] = useState(true)
+  // Use next-themes for actual switching
+  const { setTheme: setNextTheme, theme: currentTheme } = useTheme()
 
   // Change password modal
   const [showPwModal, setShowPwModal] = useState(false)
@@ -6881,20 +6981,10 @@ function CustomerSettingsSection() {
     }
   }
 
-  const Toggle = ({ checked, onChange }: { checked: boolean; onChange: () => void }) => (
-    <button
-      type="button"
-      onClick={onChange}
-      className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${checked ? "bg-emerald-600" : "bg-gray-200"}`}
-    >
-      <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${checked ? "translate-x-5" : "translate-x-0.5"}`} />
-    </button>
-  )
-
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-stone-900">Settings</h1>
+        <h1 className="text-2xl font-bold text-foreground">Settings</h1>
         <p className="text-gray-500 text-sm mt-1">Manage your preferences and account options.</p>
       </div>
 
@@ -6903,19 +6993,22 @@ function CustomerSettingsSection() {
         <CardHeader className="pb-3">
           <div className="flex items-center gap-2">
             <Settings className="w-5 h-5 text-emerald-600" />
-            <h2 className="font-bold text-stone-900">Preferences</h2>
+            <h2 className="font-bold text-foreground">Preferences</h2>
           </div>
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="flex items-center justify-between">
             <div>
-              <p className="font-medium text-stone-900">Display Currency</p>
+              <p className="font-medium text-foreground">Display Currency</p>
               <p className="text-xs text-gray-400">Prices will be shown in your selected currency.</p>
             </div>
             <select
               value={currency}
-              onChange={(e) => { setCurrency(e.target.value as any); toast("Currency updated", { description: `Now showing prices in ${e.target.value}.` }) }}
-              className="bg-stone-50 border rounded-lg px-3 py-2 text-sm font-medium"
+              onChange={(e) => { 
+                setCurrency(e.target.value as any); 
+                toast("Currency updated", { description: `Now showing prices in ${e.target.value}.` }) 
+              }}
+              className="bg-muted/30 border rounded-lg px-3 py-2 text-sm font-medium"
             >
               <option value="USD">🇺🇸 USD — US Dollar</option>
               <option value="EUR">🇪🇺 EUR — Euro</option>
@@ -6924,15 +7017,46 @@ function CustomerSettingsSection() {
               <option value="ZAR">🇿🇦 ZAR — South African Rand</option>
             </select>
           </div>
-          <hr className="border-stone-100" />
+          <hr className="border-border/50" />
           <div className="flex items-center justify-between">
             <div>
-              <p className="font-medium text-stone-900">Language</p>
+              <p className="font-medium text-foreground">Theme Preference</p>
+              <p className="text-xs text-gray-400">Switch between light and dark mode.</p>
+            </div>
+            <div className="flex bg-stone-100 p-1 rounded-lg">
+              <button
+                onClick={() => { setTheme("light"); setNextTheme("light"); }}
+                className={cn(
+                  "px-3 py-1.5 rounded-md text-xs font-bold transition-all",
+                  theme === "light" ? "bg-card text-emerald-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                )}
+              >
+                Light
+              </button>
+              <button
+                onClick={() => { setTheme("dark"); setNextTheme("dark"); }}
+                className={cn(
+                  "px-3 py-1.5 rounded-md text-xs font-bold transition-all",
+                  theme === "dark" ? "bg-stone-800 text-white shadow-sm" : "text-gray-500 hover:text-gray-700"
+                )}
+              >
+                Dark
+              </button>
+            </div>
+          </div>
+          <hr className="border-border/50" />
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-medium text-foreground">Language</p>
               <p className="text-xs text-gray-400">Interface and communication language.</p>
             </div>
             <select
-              className="bg-stone-50 border rounded-lg px-3 py-2 text-sm font-medium"
-              onChange={() => toast("Language preference saved")}
+              value={language}
+              className="bg-muted/30 border rounded-lg px-3 py-2 text-sm font-medium"
+              onChange={(e) => {
+                setLanguage(e.target.value);
+                toast("Language updated");
+              }}
             >
               <option value="en">🌐 English</option>
               <option value="fr">🌐 Français</option>
@@ -6948,19 +7072,19 @@ function CustomerSettingsSection() {
         <CardHeader className="pb-3">
           <div className="flex items-center gap-2">
             <Bell className="w-5 h-5 text-emerald-600" />
-            <h2 className="font-bold text-stone-900">Notifications</h2>
+            <h2 className="font-bold text-foreground">Notifications</h2>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {([
-            { label: "Booking confirmations", desc: "Receive confirmations when you book.", checked: notifBooking, fn: () => setNotifBooking(v => !v) },
-            { label: "Promotional offers", desc: "Deals, discounts and new destinations.", checked: notifPromo, fn: () => setNotifPromo(v => !v) },
-            { label: "Price drop alerts", desc: "Alert when a wishlist destination price drops.", checked: notifPrice, fn: () => setNotifPrice(v => !v) },
-            { label: "Travel reminders", desc: "Reminders before your upcoming trips.", checked: notifReminder, fn: () => setNotifReminder(v => !v) },
-          ] as const).map(({ label, desc, checked, fn }) => (
+          {[
+            { label: "Booking confirmations", desc: "Receive confirmations when you book.", checked: notifBooking, fn: () => setNotifBooking(!notifBooking) },
+            { label: "Promotional offers", desc: "Deals, discounts and new destinations.", checked: notifPromo, fn: () => setNotifPromo(!notifPromo) },
+            { label: "Price drop alerts", desc: "Alert when a wishlist destination price drops.", checked: notifPrice, fn: () => setNotifPrice(!notifPrice) },
+            { label: "Travel reminders", desc: "Reminders before your upcoming trips.", checked: notifReminder, fn: () => setNotifReminder(!notifReminder) },
+          ].map(({ label, desc, checked, fn }) => (
             <div key={label} className="flex items-center justify-between">
               <div>
-                <p className="font-medium text-stone-900 text-sm">{label}</p>
+                <p className="font-medium text-foreground text-sm">{label}</p>
                 <p className="text-xs text-gray-400">{desc}</p>
               </div>
               <Toggle checked={checked} onChange={fn} />
@@ -6974,46 +7098,54 @@ function CustomerSettingsSection() {
         <CardHeader className="pb-3">
           <div className="flex items-center gap-2">
             <Shield className="w-5 h-5 text-emerald-600" />
-            <h2 className="font-bold text-stone-900">Privacy &amp; Security</h2>
+            <h2 className="font-bold text-foreground">Privacy &amp; Security</h2>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="font-medium text-stone-900 text-sm">Two-Factor Authentication</p>
+              <p className="font-medium text-foreground text-sm">Two-Factor Authentication</p>
               <p className="text-xs text-gray-400">{twoFAEnabled ? "2FA is active on your account." : "Add an extra layer of security."}</p>
             </div>
             <Button
               variant={twoFAEnabled ? "default" : "outline"}
               size="sm"
-              className={`text-xs ${twoFAEnabled ? "bg-emerald-600 hover:bg-emerald-700 text-white" : ""}`}
-              onClick={() => { setTwoFAEnabled(v => !v); toast(twoFAEnabled ? "2FA disabled" : "2FA enabled", { description: twoFAEnabled ? "Two-factor auth has been turned off." : "Your account is now protected with 2FA." }) }}
+              className={cn(
+                "text-xs transition-all",
+                twoFAEnabled ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20 shadow-lg" : ""
+              )}
+              onClick={() => { 
+                setTwoFAEnabled(!twoFAEnabled); 
+                toast(twoFAEnabled ? "2FA disabled" : "2FA enabled", { 
+                  description: twoFAEnabled ? "Two-factor auth has been turned off." : "Your account is now protected with 2FA." 
+                }) 
+              }}
             >
               {twoFAEnabled ? "Disable" : "Enable"}
             </Button>
           </div>
-          <hr className="border-stone-100" />
+          <hr className="border-border/50" />
           <div className="flex items-center justify-between">
             <div>
-              <p className="font-medium text-stone-900 text-sm">Change Password</p>
+              <p className="font-medium text-foreground text-sm">Change Password</p>
               <p className="text-xs text-gray-400">Update your login password regularly.</p>
             </div>
             <Button variant="outline" size="sm" className="text-xs gap-1" onClick={() => setShowPwModal(true)}>
               <Lock className="w-3 h-3" /> Change
             </Button>
           </div>
-          <hr className="border-stone-100" />
+          <hr className="border-border/50" />
           <div className="flex items-center justify-between">
             <div>
-              <p className="font-medium text-stone-900 text-sm">Active Sessions</p>
+              <p className="font-medium text-foreground text-sm">Active Sessions</p>
               <p className="text-xs text-gray-400">You are currently signed in on this device.</p>
             </div>
             <span className="text-xs bg-emerald-50 text-emerald-600 font-semibold px-2.5 py-1 rounded-full">1 device</span>
           </div>
-          <hr className="border-stone-100" />
+          <hr className="border-border/50" />
           <div className="flex items-center justify-between">
             <div>
-              <p className="font-medium text-stone-900 text-sm">Data Export</p>
+              <p className="font-medium text-foreground text-sm">Data Export</p>
               <p className="text-xs text-gray-400">Download all your personal data and booking history.</p>
             </div>
             <Button variant="outline" size="sm" className="text-xs gap-1" onClick={handleDataExport}>
@@ -7030,7 +7162,7 @@ function CustomerSettingsSection() {
             <Headset className="w-6 h-6 text-white" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="font-bold text-stone-900">Need help?</p>
+            <p className="font-bold text-foreground">Need help?</p>
             <p className="text-xs text-gray-500">Our support team is available 24/7.</p>
           </div>
           <Button
@@ -7054,7 +7186,7 @@ function CustomerSettingsSection() {
         <CardContent>
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="font-medium text-stone-900 text-sm">Delete Account</p>
+              <p className="font-medium text-foreground text-sm">Delete Account</p>
               <p className="text-xs text-gray-400 mt-0.5">Permanently remove your account and all data. This cannot be undone.</p>
             </div>
             <Button
@@ -7145,6 +7277,7 @@ const clientSidebarItems: { id: AdminSection; label: string; icon: any; count: s
   { id: "dashboard", label: "Overview", icon: BarChart3, count: null },
   { id: "bookings", label: "Bookings", icon: Calendar, count: null },
   { id: "tickets", label: "E-Tickets", icon: Ticket, count: "tickets" },
+  { id: "notifications", label: "Notifications", icon: Bell, count: "notifications" },
   { id: "wishlist", label: "Wishlist", icon: Heart, count: "wishlist" },
   { id: "profile", label: "Profile", icon: User, count: null },
   { id: "settings", label: "Settings", icon: Settings, count: null },
@@ -7157,12 +7290,14 @@ function ClientSidebarContent({
   onSectionChange,
   ticketsCount,
   wishlistCount,
+  notificationCount,
 }: {
   onClose: () => void;
   activeSection: AdminSection;
   onSectionChange: (section: AdminSection) => void;
   ticketsCount: number;
   wishlistCount: number;
+  notificationCount: number;
 }) {
   const { user } = useAuthStore();
 
@@ -7208,6 +7343,12 @@ function ClientSidebarContent({
                     {wishlistCount}
                   </span>
                 )
+              ) : item.count === "notifications" ? (
+                notificationCount > 0 && (
+                  <span className="ml-auto bg-blue-500 text-xs px-2 py-0.5 md:py-1 rounded-full">
+                    {notificationCount}
+                  </span>
+                )
               ) : null}
             </button>
           ))}
@@ -7231,7 +7372,7 @@ function ClientSidebarContent({
 
 // User Dashboard (for non-admin authenticated users)
 function UserDashboard() {
-  const { setPage, vouchers, setWishlist, adminSection, setAdminSection } = useVistaStore();
+  const { setPage, vouchers, setWishlist, adminSection, setAdminSection, adminSearchQuery, setAdminSearchQuery, setTickets, unreadNotificationCount } = useVistaStore();
   const { isAuthenticated, user, getLoyaltyInfo } = useAuthStore();
   const loyaltyInfo = getLoyaltyInfo();
   const activeVouchers = vouchers.filter(v => v.status === "active" && (!v.applicableToUser || v.applicableToUser === user?.id));
@@ -7270,6 +7411,7 @@ function UserDashboard() {
           const tc = (tData.tickets || []).length;
           setTotalETickets(tc);
           setTicketsCount(tc);
+          if (tData.tickets) setTickets(tData.tickets);
         }
 
         // Fetch wishlist count (best-effort)
@@ -7299,9 +7441,9 @@ function UserDashboard() {
 
   if (!isAuthenticated || !user) {
     return (
-      <section className="pt-20 min-h-screen flex items-center justify-center bg-stone-50">
+      <section className="pt-20 min-h-screen flex items-center justify-center bg-muted/30">
         <div className="text-center p-8">
-          <h1 className="text-2xl font-bold text-stone-900 mb-4">My Account</h1>
+          <h1 className="text-2xl font-bold text-foreground mb-4">My Account</h1>
           <p className="text-gray-500">Please sign in to view your account dashboard.</p>
           <div className="mt-6">
             <Button onClick={() => setPage('home')} variant="outline">Go Home</Button>
@@ -7335,6 +7477,7 @@ function UserDashboard() {
             onSectionChange={setAdminSection}
             ticketsCount={ticketsCount}
             wishlistCount={wishlistCount}
+            notificationCount={unreadNotificationCount}
           />
         </aside>
 
@@ -7346,17 +7489,18 @@ function UserDashboard() {
             onSectionChange={setAdminSection}
             ticketsCount={ticketsCount}
             wishlistCount={wishlistCount}
+            notificationCount={unreadNotificationCount}
           />
         </aside>
 
         {/* Main content */}
-        <main className="flex-1 bg-stone-50 p-4 md:p-6 lg:p-8 lg:ml-64">
+        <main className="flex-1 bg-background p-4 md:p-6 lg:p-8 lg:ml-64">
           {/* Mobile header */}
           <div className="lg:hidden flex items-center justify-between mb-4">
-            <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-lg bg-white shadow-md hover:bg-gray-50">
-              <Menu className="w-5 h-5 text-stone-900" />
+            <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-lg bg-card shadow-md hover:bg-muted/30">
+              <Menu className="w-5 h-5 text-foreground" />
             </button>
-            <h2 className="text-lg font-bold text-stone-900 font-serif italic">Vista.</h2>
+            <h2 className="text-lg font-bold text-foreground font-serif italic">Vista.</h2>
             <div className="w-9" />
           </div>
 
@@ -7364,7 +7508,7 @@ function UserDashboard() {
             <>
               <div className="flex items-center justify-between mb-6">
                 <div>
-                  <h1 className="text-xl md:text-3xl font-bold text-stone-900">Overview</h1>
+                  <h1 className="text-xl md:text-3xl font-bold text-foreground">Overview</h1>
                   <p className="text-gray-500 text-sm">Account overview and your recent activity.</p>
                 </div>
               </div>
@@ -7395,9 +7539,9 @@ function UserDashboard() {
                   </CardContent>
                 </Card>
               </div>
-                <Card className="rounded-2xl border-stone-100 shadow-sm mb-6">
+                <Card className="rounded-2xl border-border/50 shadow-sm mb-6">
                   <CardHeader className="p-6 border-b border-stone-50">
-                    <h3 className="text-lg font-bold text-stone-900">Recent Bookings</h3>
+                    <h3 className="text-lg font-bold text-foreground">Recent Bookings</h3>
                   </CardHeader>
                   <CardContent className="p-6">
                     {loading ? (
@@ -7416,14 +7560,14 @@ function UserDashboard() {
                                 {b.type === 'FLIGHT' ? '✈️' : b.type === 'TOUR' ? '🏞️' : '🏨'}
                               </div>
                               <div>
-                                <p className="text-sm font-bold text-stone-900">{b.bookingId}</p>
+                                <p className="text-sm font-bold text-foreground">{b.bookingId}</p>
                                 <p className="text-xs text-stone-400 font-medium">
                                   {b.type} • {new Date(b.createdAt || Date.now()).toLocaleDateString()}
                                 </p>
                               </div>
                             </div>
                             <div className="text-right">
-                              <p className="text-sm font-black text-stone-900">{b.totalAmount ? `$${b.totalAmount}` : '—'}</p>
+                              <p className="text-sm font-black text-foreground">{b.totalAmount ? `$${b.totalAmount}` : '—'}</p>
                               <span className={cn(
                                 "text-[10px] font-black uppercase tracking-tighter",
                                 b.status === 'CONFIRMED' ? "text-emerald-500" : "text-amber-500"
@@ -7441,13 +7585,13 @@ function UserDashboard() {
               {/* Reward Sections */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
                 {/* Active Vouchers Card */}
-                <Card className="rounded-3xl border-stone-100 shadow-sm overflow-hidden flex flex-col">
+                <Card className="rounded-3xl border-border/50 shadow-sm overflow-hidden flex flex-col">
                   <CardHeader className="p-6 border-b border-stone-50 flex flex-row items-center gap-4">
                     <div className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center">
                       <Gift className="w-6 h-6 text-amber-500" />
                     </div>
                     <div>
-                      <h3 className="text-xl font-bold text-stone-900">Active Vouchers</h3>
+                      <h3 className="text-xl font-bold text-foreground">Active Vouchers</h3>
                       <p className="text-xs text-stone-400 font-medium">{activeVouchers.length} vouchers available</p>
                     </div>
                   </CardHeader>
@@ -7458,7 +7602,7 @@ function UserDashboard() {
                           <div className="flex-1 p-5">
                             <div className="flex items-start justify-between mb-2">
                               <div>
-                                <h4 className="font-bold text-stone-900">{voucher.title}</h4>
+                                <h4 className="font-bold text-foreground">{voucher.title}</h4>
                                 <p className="text-xs text-stone-500 mt-1 leading-relaxed">{voucher.description}</p>
                               </div>
                               <span className="px-2 py-0.5 bg-sky-100 text-sky-600 text-[10px] font-bold rounded uppercase tracking-wider">
@@ -7468,7 +7612,7 @@ function UserDashboard() {
                             
                             <div className="flex items-center justify-between mt-4">
                               <div className="flex items-center gap-2">
-                                <div className="px-3 py-1.5 bg-white border border-amber-200 rounded-lg text-xs font-bold text-amber-600 flex items-center gap-2">
+                                <div className="px-3 py-1.5 bg-card border border-amber-200 rounded-lg text-xs font-bold text-amber-600 flex items-center gap-2">
                                   {voucher.code}
                                   <button 
                                     onClick={() => {
@@ -7504,14 +7648,14 @@ function UserDashboard() {
                 </Card>
 
                 {/* Loyalty Rewards Card */}
-                <Card className="rounded-3xl border-stone-100 shadow-sm overflow-hidden">
+                <Card className="rounded-3xl border-border/50 shadow-sm overflow-hidden">
                   <CardHeader className="p-6 border-b border-stone-50 flex flex-row items-center justify-between">
                     <div className="flex items-center gap-4">
                       <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center">
                         <Crown className="w-6 h-6 text-indigo-500" />
                       </div>
                       <div>
-                        <h3 className="text-xl font-bold text-stone-900">Loyalty Rewards</h3>
+                        <h3 className="text-xl font-bold text-foreground">Loyalty Rewards</h3>
                         <p className="text-xs text-stone-400 font-medium">Member since {new Date(loyaltyInfo.memberSince || user.createdAt).toLocaleDateString()}</p>
                       </div>
                     </div>
@@ -7525,7 +7669,7 @@ function UserDashboard() {
                         </div>
                         <div>
                           <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1">Current Tier</p>
-                          <h4 className="text-2xl font-black text-stone-900 tracking-tight">{loyaltyInfo.currentTier.name}</h4>
+                          <h4 className="text-2xl font-black text-foreground tracking-tight">{loyaltyInfo.currentTier.name}</h4>
                         </div>
                       </div>
                       <div className="text-right">
@@ -7538,7 +7682,7 @@ function UserDashboard() {
                     <div className="space-y-3">
                       <div className="flex justify-between text-[10px] font-black text-stone-400 uppercase tracking-widest">
                         <span>{loyaltyInfo.currentTier.name}</span>
-                        <span className="text-stone-900">{loyaltyInfo.nextTier ? `${loyaltyInfo.pointsToNextTier.toLocaleString()} pts to ${loyaltyInfo.nextTier.name}` : 'Max Tier'}</span>
+                        <span className="text-foreground">{loyaltyInfo.nextTier ? `${loyaltyInfo.pointsToNextTier.toLocaleString()} pts to ${loyaltyInfo.nextTier.name}` : 'Max Tier'}</span>
                         <span>{loyaltyInfo.nextTier?.name || ''}</span>
                       </div>
                       <div className="h-3 w-full bg-stone-100 rounded-full overflow-hidden p-0.5">
@@ -7555,19 +7699,19 @@ function UserDashboard() {
 
                     {/* Stats Grid */}
                     <div className="grid grid-cols-3 gap-4">
-                      <div className="bg-stone-50/50 rounded-2xl p-4 border border-stone-100/50 text-center">
+                      <div className="bg-muted/30/50 rounded-2xl p-4 border border-border/50/50 text-center">
                         <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1.5">Multiplier</p>
                         <p className="text-lg font-black text-emerald-600">{loyaltyInfo.pointsPerDollar}x</p>
                         <p className="text-[8px] font-bold text-stone-400 mt-0.5">Points per $</p>
                       </div>
-                      <div className="bg-stone-50/50 rounded-2xl p-4 border border-stone-100/50 text-center">
+                      <div className="bg-muted/30/50 rounded-2xl p-4 border border-border/50/50 text-center">
                         <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1.5">Earnings</p>
                         <p className="text-lg font-black text-indigo-600">{loyaltyInfo.totalEarned.toLocaleString()}</p>
                         <p className="text-[8px] font-bold text-stone-400 mt-0.5">Total Earned</p>
                       </div>
-                      <div className="bg-stone-50/50 rounded-2xl p-4 border border-stone-100/50 text-center">
+                      <div className="bg-muted/30/50 rounded-2xl p-4 border border-border/50/50 text-center">
                         <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1.5">Rewards</p>
-                        <p className="text-lg font-black text-stone-900">{loyaltyInfo.totalRedeemed.toLocaleString()}</p>
+                        <p className="text-lg font-black text-foreground">{loyaltyInfo.totalRedeemed.toLocaleString()}</p>
                         <p className="text-[8px] font-bold text-stone-400 mt-0.5">Redeemed</p>
                       </div>
                     </div>
@@ -7576,7 +7720,7 @@ function UserDashboard() {
                     <div className="space-y-4">
                       <div className="flex items-center gap-2">
                         <Sparkles className="w-4 h-4 text-amber-500" />
-                        <h5 className="text-xs font-black text-stone-900 uppercase tracking-widest">{loyaltyInfo.currentTier.name} Benefits</h5>
+                        <h5 className="text-xs font-black text-foreground uppercase tracking-widest">{loyaltyInfo.currentTier.name} Benefits</h5>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {loyaltyInfo.currentTier.benefits.map((benefit, idx) => (
@@ -7595,24 +7739,73 @@ function UserDashboard() {
 
           {adminSection === 'bookings' && (
             <div>
-              <h1 className="text-2xl font-bold text-stone-900 mb-6">My Bookings</h1>
-              <Card>
-                <CardContent className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h1 className="text-2xl font-bold text-foreground">My Bookings</h1>
+                {adminSearchQuery && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => setAdminSearchQuery("")}
+                    className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                  >
+                    <X className="w-4 h-4 mr-2" />
+                    Clear Filter: {adminSearchQuery}
+                  </Button>
+                )}
+              </div>
+              <Card className="rounded-2xl border-border/50 shadow-sm overflow-hidden">
+                <CardContent className="p-0">
                   {loading ? (
-                    <p className="text-gray-500">Loading bookings...</p>
-                  ) : bookings.length === 0 ? (
-                    <p className="text-gray-500">No bookings found.</p>
+                    <div className="p-8 text-center text-gray-500">
+                      <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
+                      Loading bookings...
+                    </div>
+                  ) : (bookings.filter(b => !adminSearchQuery || b.bookingId.toLowerCase().includes(adminSearchQuery.toLowerCase()))).length === 0 ? (
+                    <div className="p-12 text-center">
+                      <div className="w-16 h-16 bg-stone-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Calendar className="w-8 h-8 text-stone-400" />
+                      </div>
+                      <h3 className="text-lg font-bold text-foreground">No bookings found</h3>
+                      <p className="text-gray-500 mt-1">
+                        {adminSearchQuery ? `No booking matching "${adminSearchQuery}"` : "You haven't made any bookings yet."}
+                      </p>
+                    </div>
                   ) : (
-                    <div className="space-y-3">
-                      {bookings.map((b: any) => (
-                        <div key={b.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-stone-50">
-                          <div>
-                            <p className="font-medium">{b.bookingId}</p>
-                            <p className="text-sm text-gray-500">{b.type === 'FLIGHT' ? `${b.fromCity} to ${b.toCity}` : b.hotelName}</p>
+                    <div className="divide-y divide-stone-50">
+                      {bookings
+                        .filter(b => !adminSearchQuery || b.bookingId.toLowerCase().includes(adminSearchQuery.toLowerCase()))
+                        .map((b: any) => (
+                        <div key={b.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-6 hover:bg-muted/30/50 transition-colors gap-4">
+                          <div className="flex items-start gap-4">
+                            <div className={cn(
+                              "w-12 h-12 rounded-2xl flex items-center justify-center text-xl shadow-sm bg-card border border-border/50",
+                              b.type === 'FLIGHT' ? "text-blue-600" : "text-emerald-600"
+                            )}>
+                              {b.type === 'FLIGHT' ? '✈️' : '🏞️'}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2 mb-1">
+                                <p className="font-bold text-foreground">{b.bookingId}</p>
+                                <span className={cn(
+                                  "text-[10px] px-2 py-0.5 rounded-full font-black uppercase tracking-widest",
+                                  b.status === 'CONFIRMED' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
+                                )}>
+                                  {b.status}
+                                </span>
+                              </div>
+                              <p className="text-sm text-stone-500 font-medium">
+                                {b.type === 'FLIGHT' ? `${b.fromCity} → ${b.toCity}` : b.hotelName}
+                              </p>
+                              <p className="text-[10px] text-stone-400 mt-1 uppercase tracking-tighter font-bold">
+                                {new Date(b.createdAt || Date.now()).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
+                              </p>
+                            </div>
                           </div>
-                          <div className="text-right">
-                            <p className="font-semibold">${b.totalAmount}</p>
-                            <span className={cn("text-xs px-2 py-1 rounded", b.status === 'CONFIRMED' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-700')}>{b.status}</span>
+                          <div className="flex items-center justify-between sm:flex-col sm:items-end gap-1">
+                            <p className="text-lg font-black text-foreground">${b.totalAmount}</p>
+                            <Button variant="ghost" size="sm" className="text-[10px] font-black uppercase tracking-widest h-8 px-3 rounded-xl border border-border/50">
+                              View Details
+                            </Button>
                           </div>
                         </div>
                       ))}
@@ -7624,19 +7817,42 @@ function UserDashboard() {
           )}
 
           {adminSection === 'tickets' && (
-            <div>
-              <h1 className="text-2xl font-bold text-stone-900 mb-6">My E-Tickets</h1>
-              <Card>
-                <CardContent className="p-6">
-                  <p className="text-gray-500">Total E-Tickets: {ticketsCount}</p>
-                  <p className="text-sm text-gray-400 mt-2">Your e-tickets will appear here.</p>
-                </CardContent>
-              </Card>
+            <div className="w-full xl:max-w-7xl">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h1 className="text-2xl font-bold text-foreground tracking-tight">My E-Tickets</h1>
+                  <p className="text-gray-500 text-sm font-medium">Manage and download your digital travel documents.</p>
+                </div>
+                {adminSearchQuery && (
+                   <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => setAdminSearchQuery("")}
+                    className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                  >
+                    <X className="w-4 h-4 mr-2" />
+                    Clear Filter
+                  </Button>
+                )}
+              </div>
+              <CustomerTicketsView initialSearch={adminSearchQuery} />
             </div>
           )}
 
           {adminSection === 'wishlist' && (
             <WishlistSection />
+          )}
+
+          {adminSection === 'notifications' && (
+            <div>
+              <div className="flex items-center justify-between mb-6">
+                <h1 className="text-2xl font-bold text-foreground">Notifications</h1>
+                <p className="text-gray-500 text-sm">Stay updated with your travel bookings and offers.</p>
+              </div>
+              <div className="bg-card rounded-3xl p-6 md:p-8 shadow-sm border border-border/50">
+                <NotificationSection />
+              </div>
+            </div>
           )}
 
           {adminSection === 'profile' && (
@@ -7649,6 +7865,223 @@ function UserDashboard() {
         </main>
       </div>
     </section>
+  );
+}
+
+
+// ── Customer Tickets View ────────────────────────────────────
+function CustomerTicketsView({ initialSearch = "" }: { initialSearch?: string }) {
+  const { tickets } = useVistaStore();
+  const [search, setSearch] = useState(initialSearch);
+
+  useEffect(() => {
+    setSearch(initialSearch);
+  }, [initialSearch]);
+
+  const filteredTickets = tickets.filter(t => 
+    !search || 
+    t.bookingId?.toLowerCase().includes(search.toLowerCase()) ||
+    t.passengerName?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const printableRef = useRef<HTMLDivElement>(null);
+  const [downloading, setDownloading] = useState<string | null>(null);
+  const [activeTicket, setActiveTicket] = useState<any>(null);
+
+  const handleDownloadPDF = async (ticket: any) => {
+    setActiveTicket(ticket);
+    setDownloading(ticket.id);
+    
+    // Give state time to update and render the hidden ticket
+    setTimeout(async () => {
+      if (!printableRef.current) {
+        setDownloading(null);
+        setActiveTicket(null);
+        return;
+      }
+      
+      try {
+        const canvas = await html2canvas(printableRef.current, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: "#ffffff",
+          windowWidth: 600,
+          logging: false, // Set to true if still debugging
+          onclone: (clonedDoc) => {
+             // Optional: Ensure images are loaded in the clone
+             const images = clonedDoc.getElementsByTagName('img');
+             return Promise.all(Array.from(images).map(img => {
+                if (img.complete) return Promise.resolve();
+                return new Promise(resolve => { img.onload = resolve; img.onerror = resolve; });
+             }));
+          }
+        });
+        
+        const imgData = canvas.toDataURL("image/png");
+        const pdf = new jsPDF({
+          orientation: "portrait",
+          unit: "px",
+          format: [canvas.width / 2, canvas.height / 2],
+        });
+        
+        pdf.addImage(imgData, "PNG", 0, 0, canvas.width / 2, canvas.height / 2);
+        pdf.save(`Vista-Ticket-${ticket.bookingId}.pdf`);
+        toast("Success", { description: "Your PDF e-ticket has been saved." });
+      } catch (error) {
+        console.error("PDF generation error:", error);
+        toast("Error", { description: "Failed to generate PDF. Please try again." });
+      } finally {
+        setDownloading(null);
+        setActiveTicket(null);
+      }
+    }, 500); // Increased timeout to 500ms
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Hidden printable ticket for capture */}
+      <div className="fixed -left-[1000px] top-0 pointer-events-none">
+        {activeTicket && (
+          <PrintableTicket 
+            ref={printableRef}
+            data={{
+              bookingId: activeTicket.bookingId,
+              ticketNumber: activeTicket.ticketNumber || `VT-${activeTicket.bookingId?.slice(0, 4).toUpperCase()}`,
+              passengerName: activeTicket.passengerName,
+              type: activeTicket.type === 'flight' ? 'FLIGHT' : 'TOUR',
+              title: activeTicket.type === 'flight' ? `${activeTicket.fromCity} to ${activeTicket.toCity}` : activeTicket.hotel,
+              date: activeTicket.date,
+              guests: activeTicket.type === 'flight' ? '1 Adult' : 'Included',
+              total: activeTicket.price || 'Included',
+              currency: 'USD',
+              status: activeTicket.status || 'Confirmed'
+            }}
+          />
+        )}
+      </div>
+
+      <div className="flex flex-col md:flex-row gap-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Input 
+            placeholder="Search tickets by ID or passenger..." 
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-10 h-12 bg-card border-border/50 rounded-2xl shadow-sm focus:ring-emerald-500"
+          />
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" className="h-12 rounded-2xl px-6 border-border/50 bg-card shadow-sm hover:bg-muted/30">
+            <BarChart3 className="w-4 h-4 mr-2" />
+            Filter
+          </Button>
+          <Button variant="outline" className="h-12 rounded-2xl px-6 border-border/50 bg-card shadow-sm hover:bg-muted/30">
+            <Printer className="w-4 h-4 mr-2" />
+            Print All
+          </Button>
+        </div>
+      </div>
+
+      {filteredTickets.length === 0 ? (
+        <Card className="rounded-[32px] border-dashed border-2 border-border/50 bg-muted/30/50">
+          <CardContent className="p-16 text-center">
+            <div className="w-20 h-20 bg-card rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm border border-border/50">
+               <Ticket className="w-10 h-10 text-stone-300" />
+            </div>
+            <h3 className="text-xl font-bold text-foreground mb-2">No tickets found</h3>
+            <p className="text-gray-500 max-w-sm mx-auto">
+              {search 
+                ? `We couldn't find any tickets matching "${search}". Try a different search term.` 
+                : "You don't have any active e-tickets yet. Once your bookings are confirmed, they will appear here."}
+            </p>
+            {search && (
+              <Button 
+                variant="link" 
+                onClick={() => setSearch("")}
+                className="text-emerald-600 font-bold mt-4"
+              >
+                Clear search filter
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredTickets.map((ticket) => (
+            <Card key={ticket.id} className="rounded-[32px] border-none shadow-xl hover:shadow-2xl transition-all overflow-hidden group">
+              <div className={cn(
+                "h-2",
+                ticket.type === 'flight' ? "bg-blue-500" : "bg-emerald-500"
+              )} />
+              <CardContent className="p-8">
+                <div className="flex justify-between items-start mb-6">
+                  <div className={cn(
+                    "w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm",
+                    ticket.type === 'flight' ? "bg-blue-50 text-blue-600" : "bg-emerald-50 text-emerald-600"
+                  )}>
+                    {ticket.type === 'flight' ? <Plane className="w-6 h-6" /> : <Calendar className="w-6 h-6" />}
+                  </div>
+                  <div className="text-right">
+                    <span className={cn(
+                      "text-[10px] px-2 py-1 rounded-full font-black uppercase tracking-widest",
+                      ticket.status === 'confirmed' ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"
+                    )}>
+                      {ticket.status}
+                    </span>
+                    <p className="text-xs font-bold text-stone-400 mt-1 uppercase tracking-tighter">#{ticket.bookingId}</p>
+                  </div>
+                </div>
+
+                <div className="mb-6">
+                  <h4 className="text-lg font-black text-foreground leading-tight mb-1">
+                    {ticket.type === 'flight' ? `${ticket.fromCity} to ${ticket.toCity}` : ticket.hotel}
+                  </h4>
+                  <p className="text-sm text-gray-500 font-medium">Passenger: {ticket.passengerName}</p>
+                </div>
+
+                <div className="space-y-3 pt-6 border-t border-stone-50">
+                   <div className="flex justify-between text-xs font-medium">
+                      <span className="text-gray-400">Date & Time</span>
+                      <span className="text-foreground font-bold">{ticket.date} • {ticket.time || 'All Day'}</span>
+                   </div>
+                   {ticket.type === 'flight' && (
+                     <div className="flex justify-between text-xs font-medium">
+                        <span className="text-gray-400">Flight / Seat</span>
+                        <span className="text-foreground font-bold">{ticket.flightCode} • {ticket.seat}</span>
+                     </div>
+                   )}
+                   {ticket.type === 'tour' && (
+                     <div className="flex justify-between text-xs font-medium">
+                        <span className="text-gray-400">Room Type</span>
+                        <span className="text-foreground font-bold">{ticket.room}</span>
+                     </div>
+                   )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 mt-8">
+                   <Button 
+                     className="rounded-xl h-11 bg-stone-900 text-white hover:bg-stone-800 font-bold text-xs"
+                     onClick={() => handleDownloadPDF(ticket)}
+                     disabled={downloading === ticket.id}
+                   >
+                      {downloading === ticket.id ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Download className="w-3.5 h-3.5 mr-2" />
+                      )}
+                      Download PDF
+                   </Button>
+                   <Button variant="outline" className="rounded-xl h-11 border-border/50 hover:bg-muted/30 font-bold text-xs">
+                      <Eye className="w-3.5 h-3.5 mr-2" />
+                      View
+                   </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -7762,13 +8195,13 @@ function TermsPageInApp() {
   const sections = legalDocuments.termsOfService;
 
   return (
-    <main className="pt-20 md:pt-24 min-h-screen bg-stone-50">
+    <main className="pt-20 md:pt-24 min-h-screen bg-muted/30">
       <div className="max-w-4xl mx-auto py-16 px-6">
-        <h1 className="text-3xl md:text-5xl font-bold mb-10 text-stone-900 tracking-tight">Terms of Service</h1>
+        <h1 className="text-3xl md:text-5xl font-bold mb-10 text-foreground tracking-tight">Terms of Service</h1>
         <div className="space-y-10">
           {sections.map((section, i) => (
-            <div key={i} className="bg-white rounded-[32px] p-8 md:p-12 shadow-sm border border-stone-100 transition-all hover:shadow-md">
-              <h2 className="text-xl md:text-2xl font-bold text-stone-900 mb-6 flex items-center gap-3">
+            <div key={i} className="bg-card rounded-[32px] p-8 md:p-12 shadow-sm border border-border/50 transition-all hover:shadow-md">
+              <h2 className="text-xl md:text-2xl font-bold text-foreground mb-6 flex items-center gap-3">
                 <span className="flex items-center justify-center w-8 h-8 rounded-full bg-emerald-50 text-emerald-600 text-sm font-bold">
                   {i + 1}
                 </span>
@@ -7780,7 +8213,7 @@ function TermsPageInApp() {
             </div>
           ))}
           {sections.length === 0 && (
-            <div className="text-center py-20 bg-white rounded-[32px] border border-stone-100">
+            <div className="text-center py-20 bg-card rounded-[32px] border border-border/50">
               <p className="text-gray-400 font-medium text-lg">Terms of Service content coming soon.</p>
             </div>
           )}
@@ -7796,13 +8229,13 @@ function PrivacyPageInApp() {
   const sections = legalDocuments.privacyPolicy;
 
   return (
-    <main className="pt-20 md:pt-24 min-h-screen bg-stone-50">
+    <main className="pt-20 md:pt-24 min-h-screen bg-muted/30">
       <div className="max-w-4xl mx-auto py-16 px-6">
-        <h1 className="text-3xl md:text-5xl font-bold mb-10 text-stone-900 tracking-tight">Privacy Policy</h1>
+        <h1 className="text-3xl md:text-5xl font-bold mb-10 text-foreground tracking-tight">Privacy Policy</h1>
         <div className="space-y-10">
           {sections.map((section, i) => (
-            <div key={i} className="bg-white rounded-[32px] p-8 md:p-12 shadow-sm border border-stone-100 transition-all hover:shadow-md">
-              <h2 className="text-xl md:text-2xl font-bold text-stone-900 mb-6 flex items-center gap-3">
+            <div key={i} className="bg-card rounded-[32px] p-8 md:p-12 shadow-sm border border-border/50 transition-all hover:shadow-md">
+              <h2 className="text-xl md:text-2xl font-bold text-foreground mb-6 flex items-center gap-3">
                 <span className="flex items-center justify-center w-8 h-8 rounded-full bg-emerald-50 text-emerald-600 text-sm font-bold">
                   {i + 1}
                 </span>
@@ -7814,7 +8247,7 @@ function PrivacyPageInApp() {
             </div>
           ))}
           {sections.length === 0 && (
-            <div className="text-center py-20 bg-white rounded-[32px] border border-stone-100">
+            <div className="text-center py-20 bg-card rounded-[32px] border border-border/50">
               <p className="text-gray-400 font-medium text-lg">Privacy Policy content coming soon.</p>
             </div>
           )}

@@ -17,6 +17,7 @@ const nextConfig: NextConfig = {
     NEXTAUTH_SECRET: 'vista-travel-secret-key-change-in-production-2024',
     NEXTAUTH_URL: 'http://localhost:3000',
   },
+  serverExternalPackages: ["@prisma/client"],
 };
 
 export default nextConfig;

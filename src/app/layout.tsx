@@ -3,6 +3,7 @@ import { Outfit, Playfair_Display } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { Navigation, Footer } from "./page";
+import { ThemeProvider } from "@/components/ThemeProvider";
 
 const outfit = Outfit({
   variable: "--font-outfit",
@@ -35,12 +36,19 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${outfit.variable} ${playfair.variable} font-sans antialiased bg-stone-50 text-stone-800`}
+        className={`${outfit.variable} ${playfair.variable} font-sans antialiased bg-background text-foreground`}
       >
-        <Navigation />
-        {children}
-        <Footer />
-        <Toaster />
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="light"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <Navigation />
+          {children}
+          <Footer />
+          <Toaster />
+        </ThemeProvider>
       </body>
     </html>
   );
