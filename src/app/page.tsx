@@ -843,6 +843,12 @@ function StatsSection() {
 // Featured Destinations
 function FeaturedDestinations() {
   const { setPage, setSelectedDestination, convertFromUSD, currency: activeCurrency } = useVistaStore();
+  const [mounted, setMounted] = useState(false);
+  
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const currencySymbol = activeCurrency === "USD" ? "$" : activeCurrency === "EUR" ? "€" : activeCurrency === "GBP" ? "£" : activeCurrency === "ZMW" ? "ZK" : "R";
   const featured = destinations.slice(0, 3);
 
@@ -884,7 +890,11 @@ function FeaturedDestinations() {
             </div>
             <div className="flex justify-between items-center">
               <span className="text-xl font-bold text-foreground">
-                {currencySymbol}{convertFromUSD(dest.price).toLocaleString()}
+                {!mounted ? `$${dest.price.toLocaleString()}` : (
+                  <>
+                    {currencySymbol}{convertFromUSD(dest.price).toLocaleString()}
+                  </>
+                )}
               </span>
               <span className="text-sm text-gray-500">{dest.duration}</span>
               <div>
@@ -922,6 +932,12 @@ function HomePage() {
 // Flights Page
 function FlightsPage() {
   const { tripType, setTripType, flightType, setFlightType, convertFromUSD, currency: activeCurrency } = useVistaStore();
+  const [mounted, setMounted] = useState(false);
+  
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const currencySymbol = activeCurrency === "USD" ? "$" : activeCurrency === "EUR" ? "€" : activeCurrency === "GBP" ? "£" : activeCurrency === "ZMW" ? "ZK" : "R";
   const { isAuthenticated } = useAuthStore();
   const [fromAirport, setFromAirport] = useState("LUN");
@@ -1244,7 +1260,11 @@ function FlightsPage() {
 
                     <div className="text-center lg:text-right">
                       <p className="text-2xl font-bold text-emerald-600">
-                        {currencySymbol}{convertFromUSD(flight.price).toLocaleString()}
+                        {!mounted ? `$${flight.price.toLocaleString()}` : (
+                          <>
+                            {currencySymbol}{convertFromUSD(flight.price).toLocaleString()}
+                          </>
+                        )}
                       </p>
                       <p className="text-xs text-gray-400">per person</p>
                     </div>
@@ -1305,7 +1325,7 @@ function FlightsPage() {
                   </div>
                 </div>
                 <p className="text-emerald-600 font-bold text-lg">
-                  From {currencySymbol}{convertFromUSD(route.price).toLocaleString()}
+                  {!mounted ? `From $${route.price.toLocaleString()}` : `From ${currencySymbol}${convertFromUSD(route.price).toLocaleString()}`}
                 </p>
                 <p className="text-sm text-gray-500">
                   {route.duration} • {route.stops === 0 ? "Direct" : "1 Stop"}
@@ -1327,6 +1347,12 @@ function FlightsPage() {
 // Destinations Page
 function DestinationsPage() {
   const { setSelectedDestination, wishlist, toggleWishlist, setWishlist, convertFromUSD, currency: activeCurrency } = useVistaStore();
+  const [mounted, setMounted] = useState(false);
+  
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const currencySymbol = activeCurrency === "USD" ? "$" : activeCurrency === "EUR" ? "€" : activeCurrency === "GBP" ? "£" : activeCurrency === "ZMW" ? "ZK" : "R";
   const { isAuthenticated, user } = useAuthStore();
   const [filter, setFilter] = useState("all");
@@ -1536,7 +1562,11 @@ function DestinationsPage() {
                   <div>
                     <span className="text-gray-400 text-xs">From</span>
                     <p className="text-2xl font-bold text-emerald-600">
-                      {currencySymbol}{convertFromUSD(dest.price).toLocaleString()}
+                      {!mounted ? `$${dest.price.toLocaleString()}` : (
+                        <>
+                          {currencySymbol}{convertFromUSD(dest.price).toLocaleString()}
+                        </>
+                      )}
                     </p>
                   </div>
                   <div className="text-right">
@@ -1599,7 +1629,11 @@ function DestinationsPage() {
                   <div className="text-right">
                     <p className="text-gray-400 text-sm">From</p>
                     <p className="text-3xl font-bold text-emerald-600">
-                      {currencySymbol}{convertFromUSD(selectedDest.price).toLocaleString()}
+                      {!mounted ? `$${selectedDest.price.toLocaleString()}` : (
+                        <>
+                          {currencySymbol}{convertFromUSD(selectedDest.price).toLocaleString()}
+                        </>
+                      )}
                     </p>
                   </div>
                 </div>
@@ -3059,8 +3093,14 @@ function ProfileSection() {
 
 // Wishlist Section Component
 function WishlistSection() {
-  const { wishlist, removeFromWishlist, clearWishlist, setPage, getCurrencySymbol, convertFromUSD } = useVistaStore();
-  const currencySymbol = getCurrencySymbol();
+  const { wishlist, removeFromWishlist, clearWishlist, setPage, getCurrencySymbol, convertFromUSD, currency: activeCurrency } = useVistaStore();
+  const [mounted, setMounted] = useState(false);
+  
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const currencySymbol = activeCurrency === "USD" ? "$" : activeCurrency === "EUR" ? "€" : activeCurrency === "GBP" ? "£" : activeCurrency === "ZMW" ? "ZK" : "R";
   const { user } = useAuthStore();
 
   const handleRemove = async (id: string) => {
@@ -3155,7 +3195,11 @@ function WishlistSection() {
                 </div>
                 <div className="flex items-center justify-between">
                   <p className="font-bold text-emerald-600">
-                    {currencySymbol}{convertFromUSD(dest.price).toLocaleString()}
+                    {!mounted ? `$${dest.price.toLocaleString()}` : (
+                      <>
+                        {currencySymbol}{convertFromUSD(dest.price).toLocaleString()}
+                      </>
+                    )}
                   </p>
                   <span className="text-xs text-gray-500">{dest.duration}</span>
                 </div>
@@ -4721,8 +4765,14 @@ function BookingsSection({ type, userId: explicitUserId }: { type?: "FLIGHT" | "
 
 // Destinations/Inventory Management Section Component
 function DestinationsSection() {
-  const { getCurrencySymbol, convertFromUSD } = useVistaStore();
-  const currencySymbol = getCurrencySymbol();
+  const { getCurrencySymbol, convertFromUSD, currency: activeCurrency } = useVistaStore();
+  const [mounted, setMounted] = useState(false);
+  
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const currencySymbol = activeCurrency === "USD" ? "$" : activeCurrency === "EUR" ? "€" : activeCurrency === "GBP" ? "£" : activeCurrency === "ZMW" ? "ZK" : "R";
   const [destinations, setDestinations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -4926,7 +4976,11 @@ function DestinationsSection() {
                   </p>
                 </div>
                 <p className="text-emerald-600 font-bold text-lg">
-                  {currencySymbol}{convertFromUSD(dest.price).toLocaleString()}
+                  {!mounted ? `$${dest.price.toLocaleString()}` : (
+                    <>
+                      {currencySymbol}{convertFromUSD(dest.price).toLocaleString()}
+                    </>
+                  )}
                 </p>
               </div>
               <p className="text-gray-600 text-sm line-clamp-2 mb-4">{dest.description}</p>
