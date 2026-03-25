@@ -1,10 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-@theme {
-  /* Re-defining theme as empty to let tailwind.config.ts take precedence or just inherit */
-}
-
 :root {
   --radius: 0.625rem;
   --background: hsl(0 0% 100%);
