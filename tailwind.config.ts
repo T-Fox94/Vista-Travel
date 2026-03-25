@@ -2,7 +2,7 @@ import type { Config } from "tailwindcss";
 import tailwindcssAnimate from "tailwindcss-animate";
 
 const config: Config = {
-    darkMode: "class",
+    darkMode: ["class", "(.dark *)"],
     content: [
     "./pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
@@ -10,6 +10,11 @@ const config: Config = {
   ],
   theme: {
   	extend: {
+  		fontFamily: {
+  			sans: ['var(--font-outfit)', 'sans-serif'],
+  			serif: ['var(--font-playfair)', 'serif'],
+  			mono: ['var(--font-geist-mono)', 'monospace'],
+  		},
   		colors: {
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',
@@ -50,9 +55,37 @@ const config: Config = {
   				'3': 'hsl(var(--chart-3))',
   				'4': 'hsl(var(--chart-4))',
   				'5': 'hsl(var(--chart-5))'
+  			},
+  			sidebar: {
+  				DEFAULT: 'hsl(var(--sidebar))',
+  				foreground: 'hsl(var(--sidebar-foreground))',
+  				primary: 'hsl(var(--sidebar-primary))',
+  				'primary-foreground': 'hsl(var(--sidebar-primary-foreground))',
+  				accent: 'hsl(var(--sidebar-accent))',
+  				'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
+  				border: 'hsl(var(--sidebar-border))',
+  				ring: 'hsl(var(--sidebar-ring))',
+  			},
+  			emerald: {
+  				50: 'hsl(158 95% 97%)',
+  				100: 'hsl(158 95% 92%)',
+  				500: 'hsl(158 64% 52%)',
+  				600: 'hsl(158 64% 45%)',
+  				700: 'hsl(158 64% 38%)',
+  			},
+  			stone: {
+  				50: 'hsl(0 0% 98%)',
+  				100: 'hsl(0 0% 96%)',
+  				200: 'hsl(0 0% 92%)',
+  				300: 'hsl(0 0% 88%)',
+  				400: 'hsl(0 0% 70%)',
+  				500: 'hsl(0 0% 45%)',
+  				800: 'hsl(0 0% 25%)',
+  				900: 'hsl(0 0% 15%)',
   			}
   		},
   		borderRadius: {
+  			xl: 'calc(var(--radius) + 4px)',
   			lg: 'var(--radius)',
   			md: 'calc(var(--radius) - 2px)',
   			sm: 'calc(var(--radius) - 4px)'
