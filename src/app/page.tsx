@@ -4237,6 +4237,7 @@ function SupportTicketsSection() {
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [reply, setReply] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<"ALL" | "OPEN" | "IN_PROGRESS" | "RESOLVED">("ALL");
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const loadTickets = async () => {
@@ -4378,6 +4379,29 @@ function SupportTicketsSection() {
         </div>
       </div>
 
+      <div className="flex gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide">
+        {[
+          { label: "All Tickets", value: "ALL", icon: Ticket },
+          { label: "Open", value: "OPEN", icon: Clock },
+          { label: "In Progress", value: "IN_PROGRESS", icon: MessageSquare },
+          { label: "Resolved", value: "RESOLVED", icon: CheckCircle2 }
+        ].map((tab) => (
+          <button
+            key={tab.value}
+            onClick={() => setStatusFilter(tab.value as any)}
+            className={cn(
+              "px-5 py-2.5 rounded-2xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap",
+              statusFilter === tab.value
+                ? "bg-stone-900 text-white shadow-lg"
+                : "bg-card text-gray-500 hover:bg-stone-100 border border-border/50"
+            )}
+          >
+            <tab.icon className="w-3.5 h-3.5" />
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
       <div className="flex-1 flex gap-6 overflow-hidden">
         {/* Ticket List (Left) */}
         <div className="w-80 flex flex-col gap-4 overflow-y-auto pr-2 custom-scrollbar">
@@ -4385,11 +4409,13 @@ function SupportTicketsSection() {
             <div className="flex items-center justify-center py-20 bg-card rounded-3xl border border-border">
               <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
             </div>
-          ) : tickets.length === 0 ? (
+          ) : tickets.filter(t => statusFilter === "ALL" || t.status === statusFilter).length === 0 ? (
             <div className="text-center py-10 bg-card rounded-3xl border border-border/50 text-gray-400 text-sm">
-              No tickets found
+              No {statusFilter.toLowerCase().replace('_', ' ')} tickets found
             </div>
-          ) : tickets.map((t) => (
+          ) : tickets
+            .filter(t => statusFilter === "ALL" || t.status === statusFilter)
+            .map((t) => (
             <button
               key={t.id}
               onClick={() => setSelectedTicketId(t.id)}
@@ -7928,16 +7954,22 @@ function UserDashboard() {
 function CustomerTicketsView({ initialSearch = "" }: { initialSearch?: string }) {
   const { tickets } = useVistaStore();
   const [search, setSearch] = useState(initialSearch);
+  const [filter, setFilter] = useState<"all" | "flight" | "tour" | "voucher">("all");
+  const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
     setSearch(initialSearch);
   }, [initialSearch]);
 
-  const filteredTickets = tickets.filter(t => 
-    !search || 
-    t.bookingId?.toLowerCase().includes(search.toLowerCase()) ||
-    t.passengerName?.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredTickets = tickets.filter(t => {
+    const matchesSearch = !search || 
+      t.bookingId?.toLowerCase().includes(search.toLowerCase()) ||
+      t.passengerName?.toLowerCase().includes(search.toLowerCase());
+    
+    const matchesFilter = filter === "all" || t.type === filter;
+    
+    return matchesSearch && matchesFilter;
+  });
 
   const printableRef = useRef<HTMLDivElement>(null);
   const [downloading, setDownloading] = useState<string | null>(null);
@@ -8026,16 +8058,52 @@ function CustomerTicketsView({ initialSearch = "" }: { initialSearch?: string })
           />
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="h-12 rounded-2xl px-6 border-border/50 bg-card shadow-sm hover:bg-muted/30">
+          <Button 
+            variant="outline" 
+            onClick={() => setShowFilters(!showFilters)}
+            className={cn(
+              "h-12 rounded-2xl px-6 border-border/50 bg-card shadow-sm transition-all",
+              showFilters ? "bg-emerald-50 border-emerald-200 text-emerald-600" : "hover:bg-muted/30"
+            )}
+          >
             <BarChart3 className="w-4 h-4 mr-2" />
-            Filter
+            {showFilters ? "Hide Filters" : "Filter"}
           </Button>
-          <Button variant="outline" className="h-12 rounded-2xl px-6 border-border/50 bg-card shadow-sm hover:bg-muted/30">
+          <Button 
+            variant="outline" 
+            onClick={() => window.print()}
+            className="h-12 rounded-2xl px-6 border-border/50 bg-card shadow-sm hover:bg-muted/30"
+          >
             <Printer className="w-4 h-4 mr-2" />
             Print All
           </Button>
         </div>
       </div>
+
+      {showFilters && (
+        <div className="flex flex-wrap gap-2 p-2 bg-muted/30 rounded-[24px] border border-border/50 animate-in fade-in slide-in-from-top-2 duration-300">
+          {[
+            { label: "All Tickets", value: "all", icon: Ticket },
+            { label: "Flight Tickets", value: "flight", icon: Plane },
+            { label: "Tour Vouchers", value: "tour", icon: Compass },
+            { label: "Gift Vouchers", value: "voucher", icon: Gift }
+          ].map((tab) => (
+            <button
+              key={tab.value}
+              onClick={() => setFilter(tab.value as any)}
+              className={cn(
+                "px-5 py-2.5 rounded-2xl text-xs font-bold transition-all flex items-center gap-2",
+                filter === tab.value
+                  ? "bg-stone-900 text-white shadow-lg"
+                  : "bg-card text-gray-500 hover:bg-stone-100 border border-border/50"
+              )}
+            >
+              <tab.icon className="w-3.5 h-3.5" />
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {filteredTickets.length === 0 ? (
         <Card className="rounded-[32px] border-dashed border-2 border-border/50 bg-muted/30/50">
