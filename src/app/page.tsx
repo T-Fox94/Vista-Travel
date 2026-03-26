@@ -870,50 +870,59 @@ function FeaturedDestinations() {
         {featured.map((dest, index) => (
           <div
             key={dest.id}
-            className="group cursor-pointer"
+            className="group bg-card rounded-[32px] shadow-xl overflow-hidden border-none transition-all duration-300 hover:shadow-2xl cursor-pointer"
             onClick={() => {
               setSelectedDestination(dest);
               setPage("destinations");
             }}
           >
-            <div className="relative h-[400px] rounded-2xl overflow-hidden shadow-lg mb-4">
+            <div className="relative h-64 overflow-hidden">
               <img
                 src={dest.image}
                 alt={dest.title}
                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
               />
-              <div className="absolute bottom-0 left-0 w-full p-6 bg-gradient-to-t from-black/80 to-transparent">
-                <h3 className="text-2xl font-bold text-white mb-1">
-                  {dest.title}
-                </h3>
-                <p className="text-white/80 text-sm flex items-center gap-1">
-                  <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                  {dest.rating} ({dest.reviews} reviews)
-                </p>
+              <div className="absolute top-4 left-4">
+                <span className="px-3 py-1.5 bg-emerald-500/90 backdrop-blur-sm text-white rounded-xl text-[10px] font-black uppercase tracking-widest">
+                  {dest.tags[0] || "Featured"}
+                </span>
+              </div>
+              <div className="absolute top-4 right-4">
+                <button 
+                  className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-md text-stone-900 hover:text-red-500 transition-colors"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleToggleWishlist(e, dest);
+                  }}
+                >
+                  <Heart className={cn("w-5 h-5", isWishlisted(dest.id) && "fill-red-500 text-red-500")} />
+                </button>
               </div>
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-xl font-bold text-foreground">
-                {!mounted ? `$${dest.price.toLocaleString()}` : (
-                  <>
-                    {currencySymbol}{convertFromUSD(dest.price).toLocaleString()}
-                  </>
-                )}
-              </span>
-              <span className="text-sm text-gray-500">{dest.duration}</span>
-              <div>
-                <BookingModal
-                  type="TOUR"
-                  initialData={{
-                    ...dest,
-                    basePrice: dest.price, 
-                    destinationId: dest.id, 
-                    hotelName: dest.title,
-                    roomType: "Double Standard",
-                  }}
-                  trigger={<Button variant="outline" className="ml-4">Book Tour</Button>}
-                />
+            <div className="p-8">
+              <div className="flex justify-between items-start mb-3">
+                <h3 className="text-xl font-bold text-foreground line-clamp-1">{dest.title}</h3>
+                <div className="flex items-center gap-1 text-yellow-500">
+                  <Star className="w-4 h-4 fill-current" />
+                  <span className="text-sm font-bold text-foreground">{dest.rating}</span>
+                </div>
               </div>
+              <p className="text-gray-500 text-sm line-clamp-2 mb-6">{dest.description}</p>
+              <div className="flex items-center justify-between border-t border-gray-50 pt-6 mb-8">
+                <div>
+                  <span className="text-[10px] uppercase tracking-widest text-gray-400 font-bold block mb-1">From</span>
+                  <span className="text-2xl font-black text-emerald-600">
+                    {currencySymbol}{convertFromUSD(dest.price).toLocaleString()}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] uppercase tracking-widest text-gray-400 font-bold block mb-1">{dest.duration}</span>
+                  <span className="text-[10px] uppercase tracking-widest text-gray-400 font-bold block">All Inclusive</span>
+                </div>
+              </div>
+              <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl h-14 font-bold text-base shadow-lg shadow-emerald-100">
+                View Details
+              </Button>
             </div>
           </div>
         ))}
@@ -1514,7 +1523,7 @@ function DestinationsPage() {
           {filteredDestinations.map((dest, index) => (
             <div
               key={dest.id}
-              className="group bg-card rounded-3xl shadow-lg overflow-hidden border border-border hover:shadow-xl transition-all cursor-pointer"
+              className="group bg-card rounded-[32px] shadow-xl overflow-hidden border-none transition-all duration-300 hover:shadow-2xl cursor-pointer"
               onClick={() => openDestinationModal(dest)}
             >
               <div className="relative h-64 overflow-hidden">
@@ -1524,48 +1533,44 @@ function DestinationsPage() {
                   className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                 />
                 <div className="absolute top-4 left-4">
-                  <span className="px-3 py-1 bg-emerald-500 text-white rounded-full text-xs font-bold uppercase">
+                  <span className="px-3 py-1.5 bg-emerald-500/90 backdrop-blur-sm text-white rounded-xl text-[10px] font-black uppercase tracking-widest">
                     {dest.tags[0]}
                   </span>
                 </div>
                 <div className="absolute top-4 right-4">
-                  {isAuthenticated && (
-                    <button
-                      className={cn(
-                        "w-10 h-10 rounded-full flex items-center justify-center transition-colors",
-                        isWishlisted(dest.id)
-                          ? "bg-red-500 text-white"
-                          : "bg-card/90 hover:bg-red-500 hover:text-white"
-                      )}
-                      onClick={(e) => handleToggleWishlist(e, dest)}
-                    >
-                      <Heart className={cn(
-                        "w-4 h-4",
-                        isWishlisted(dest.id) && "fill-current"
-                      )} />
-                    </button>
-                  )}
+                  <button
+                    className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-md text-stone-900 hover:text-red-500 transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleToggleWishlist(e, dest);
+                    }}
+                  >
+                    <Heart className={cn(
+                      "w-5 h-5",
+                      isWishlisted(dest.id) && "fill-red-500 text-red-500"
+                    )} />
+                  </button>
                 </div>
               </div>
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-xl font-bold text-foreground">
+              <div className="p-8">
+                <div className="flex justify-between items-start mb-3">
+                  <h3 className="text-xl font-bold text-foreground line-clamp-1">
                     {dest.title}
                   </h3>
-                  <div className="flex items-center text-yellow-500">
+                  <div className="flex items-center gap-1 text-yellow-500">
                     <Star className="w-4 h-4 fill-current" />
-                    <span className="text-sm font-semibold ml-1">
+                    <span className="text-sm font-bold text-foreground">
                       {dest.rating}
                     </span>
                   </div>
                 </div>
-                <p className="text-gray-500 text-sm mb-4 line-clamp-2">
+                <p className="text-gray-500 text-sm line-clamp-2 mb-6">
                   {dest.description}
                 </p>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between border-t border-gray-50 pt-6 mb-8">
                   <div>
-                    <span className="text-gray-400 text-xs">From</span>
-                    <p className="text-2xl font-bold text-emerald-600">
+                    <span className="text-[10px] uppercase tracking-widest text-gray-400 font-bold block mb-1">From</span>
+                    <p className="text-2xl font-black text-emerald-600">
                       {!mounted ? `$${dest.price.toLocaleString()}` : (
                         <>
                           {currencySymbol}{convertFromUSD(dest.price).toLocaleString()}
@@ -1574,25 +1579,13 @@ function DestinationsPage() {
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm text-gray-500">{dest.duration}</p>
-                    <p className="text-xs text-gray-400">{dest.mealPlan}</p>
+                    <span className="text-[10px] uppercase tracking-widest text-gray-400 font-bold block mb-1">{dest.duration}</span>
+                    <span className="text-[10px] uppercase tracking-widest text-gray-400 font-bold block">{dest.mealPlan}</span>
                   </div>
                 </div>
-                <div className="flex gap-3 mt-4">
-                  <Button className="flex-1 bg-card border border-border text-foreground py-3 rounded-xl font-semibold hover:bg-muted">
-                    View Details
-                  </Button>
-                  <BookingModal
-                    type="TOUR"
-                    initialData={{ 
-                      ...dest,
-                      basePrice: dest.price, 
-                      destinationId: dest.id, 
-                      hotelName: dest.title,
-                    }}
-                    trigger={<Button className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-semibold">Book Tour</Button>}
-                  />
-                </div>
+                <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl h-14 font-bold text-base shadow-lg shadow-emerald-100">
+                  View Details
+                </Button>
               </div>
             </div>
           ))}
@@ -3202,61 +3195,70 @@ function WishlistSection() {
           {wishlist.map((dest) => (
             <div
               key={dest.id}
-              className="bg-card rounded-xl shadow-sm overflow-hidden border border-border hover:shadow-md transition-all group"
+              className="group bg-card rounded-[32px] shadow-xl overflow-hidden border-none transition-all duration-300 hover:shadow-2xl cursor-pointer"
+              onClick={() => {
+                setSelectedDestination(dest);
+                setPage("destinations");
+              }}
             >
-              <div className="relative h-40 overflow-hidden">
+              <div className="relative h-48 overflow-hidden">
                 <img
                   src={dest.image}
                   alt={dest.title}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                 />
-                <div className="absolute top-2 right-2">
+                <div className="absolute top-3 left-3">
+                  <span className="px-2 py-1 bg-emerald-500/90 backdrop-blur-sm text-white rounded-lg text-[10px] font-black uppercase tracking-widest">
+                    {dest.tags[0]}
+                  </span>
+                </div>
+                <div className="absolute top-3 right-3">
                   <button
-                    onClick={() => handleRemove(dest.id)}
-                    className="w-8 h-8 bg-card/90 rounded-full flex items-center justify-center hover:bg-red-500 hover:text-white transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRemove(dest.id);
+                    }}
+                    className="w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-md text-stone-900 hover:text-red-500 transition-colors"
                   >
                     <X className="w-4 h-4" />
                   </button>
                 </div>
-                <div className="absolute top-2 left-2">
-                  <span className="px-2 py-0.5 bg-emerald-500 text-white rounded-full text-[10px] font-bold uppercase">
-                    {dest.tags[0]}
-                  </span>
-                </div>
               </div>
-              <div className="p-4">
-                <h3 className="font-bold text-foreground truncate">{dest.title}</h3>
-                <p className="text-xs text-gray-500 mb-2">{dest.location}</p>
-                <div className="flex items-center gap-1 mb-2">
-                  <Star className="w-3 h-3 text-yellow-500 fill-current" />
-                  <span className="text-xs text-gray-600">{dest.rating}</span>
-                  <span className="text-xs text-gray-400">({dest.reviews} reviews)</span>
+              <div className="p-6">
+                <div className="flex justify-between items-start mb-2">
+                  <h3 className="font-bold text-foreground text-lg line-clamp-1">{dest.title}</h3>
+                  <div className="flex items-center gap-1 text-yellow-500">
+                    <Star className="w-3 h-3 fill-current" />
+                    <span className="text-xs font-bold text-foreground">{dest.rating}</span>
+                  </div>
                 </div>
-                <div className="flex items-center justify-between">
-                  <p className="font-bold text-emerald-600">
-                    {!mounted ? `$${dest.price.toLocaleString()}` : (
-                      <>
-                        {currencySymbol}{convertFromUSD(dest.price).toLocaleString()}
-                      </>
-                    )}
-                  </p>
-                  <span className="text-xs text-gray-500">{dest.duration}</span>
+                <p className="text-gray-500 text-xs line-clamp-2 mb-4">{dest.description}</p>
+                <div className="flex items-center justify-between border-t border-gray-50 pt-4 mb-6">
+                  <div>
+                    <span className="text-[10px] uppercase tracking-widest text-gray-400 font-bold block mb-1">From</span>
+                    <span className="text-xl font-black text-emerald-600">
+                      {!mounted ? `$${dest.price.toLocaleString()}` : (
+                        <>
+                          {currencySymbol}{convertFromUSD(dest.price).toLocaleString()}
+                        </>
+                      )}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] uppercase tracking-widest text-gray-400 font-bold block mb-1">{dest.duration}</span>
+                    <span className="text-[10px] uppercase tracking-widest text-gray-400 font-bold block">SAVED</span>
+                  </div>
                 </div>
-                <BookingModal
-                  type="TOUR"
-                  initialData={{ 
-                    ...dest,
-                    basePrice: dest.price, 
-                    destinationId: dest.id, 
-                    hotelName: dest.title,
-                    roomType: "Double Standard",
+                <Button 
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl h-10 font-bold text-xs shadow-md shadow-emerald-100"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedDestination(dest);
+                    setPage("destinations");
                   }}
-                  trigger={
-                    <Button className="w-full mt-3 bg-emerald-600 hover:bg-emerald-700 text-white text-sm">
-                      Book Now
-                    </Button>
-                  }
-                />
+                >
+                  View Details
+                </Button>
               </div>
             </div>
           ))}
@@ -5065,49 +5067,63 @@ function DestinationsSection() {
             No destinations in inventory.
           </div>
         ) : destinations.map((dest) => (
-          <div key={dest.id} className="bg-card rounded-[32px] border border-border/50 shadow-sm overflow-hidden group hover:shadow-xl transition-all duration-300">
-            <div className="relative h-48">
-              <img src={dest.image} alt={dest.title} className="w-full h-full object-cover" />
+          <div key={dest.id} className="bg-card rounded-[32px] border-none shadow-xl overflow-hidden group hover:shadow-2xl transition-all duration-300">
+            <div className="relative h-56 overflow-hidden">
+              <img src={dest.image} alt={dest.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
               <div className="absolute top-4 right-4 flex gap-2">
                 <button 
                   onClick={() => handleOpenModal(dest)}
-                  className="p-2 bg-card/90 backdrop-blur-sm rounded-xl text-foreground shadow-sm hover:bg-card transition-all"
+                  className="p-2.5 bg-white rounded-xl text-stone-900 shadow-md hover:bg-emerald-50 hover:text-emerald-600 transition-all font-bold"
                 >
                   <Pencil className="w-4 h-4" />
                 </button>
                 <button 
                   onClick={() => handleDelete(dest.id)}
-                  className="p-2 bg-card/90 backdrop-blur-sm rounded-xl text-red-600 shadow-sm hover:bg-card transition-all"
+                  className="p-2.5 bg-white rounded-xl text-red-500 shadow-md hover:bg-red-50 transition-all"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
               {!dest.isActive && (
-                <div className="absolute top-4 left-4 px-3 py-1 bg-gray-900 text-white text-[10px] font-black uppercase tracking-widest rounded-full">
+                <div className="absolute top-4 left-4 px-3 py-1 bg-gray-900/90 backdrop-blur-sm text-white text-[10px] font-black uppercase tracking-widest rounded-full">
                   Inactive
                 </div>
               )}
+              <div className="absolute top-4 left-4">
+                <span className="px-3 py-1.5 bg-emerald-500/90 backdrop-blur-sm text-white rounded-xl text-[10px] font-black uppercase tracking-widest">
+                  {dest.tags[0]}
+                </span>
+              </div>
             </div>
-            <div className="p-6">
-              <div className="flex justify-between items-start mb-2">
+            <div className="p-8">
+              <div className="flex justify-between items-start mb-4">
                 <div>
-                  <h3 className="font-bold text-foreground text-lg line-clamp-1">{dest.title}</h3>
-                  <p className="text-gray-500 text-xs flex items-center gap-1">
-                    <MapPin className="w-3 h-3" /> {dest.location}
+                  <h3 className="font-bold text-foreground text-xl line-clamp-1 mb-1">{dest.title}</h3>
+                  <p className="text-gray-400 text-xs flex items-center gap-1.5 font-bold uppercase tracking-widest">
+                    <MapPin className="w-3.5 h-3.5 text-emerald-500" /> {dest.location}
                   </p>
                 </div>
-                <p className="text-emerald-600 font-bold text-lg">
-                  {!mounted ? `$${dest.price.toLocaleString()}` : (
-                    <>
-                      {currencySymbol}{convertFromUSD(dest.price).toLocaleString()}
-                    </>
-                  )}
-                </p>
+                <div className="text-right">
+                  <span className="text-[10px] uppercase tracking-widest text-gray-400 font-bold block mb-1">Price</span>
+                  <p className="text-emerald-600 font-black text-2xl">
+                    {!mounted ? `$${dest.price.toLocaleString()}` : (
+                      <>
+                        {currencySymbol}{convertFromUSD(dest.price).toLocaleString()}
+                      </>
+                    )}
+                  </p>
+                </div>
               </div>
-              <p className="text-gray-600 text-sm line-clamp-2 mb-4">{dest.description}</p>
-              <div className="flex items-center justify-between text-xs text-stone-400 font-bold uppercase tracking-widest border-t border-gray-50 pt-4">
-                <span>{dest.duration}</span>
-                <span>{dest.mealPlan}</span>
+              <p className="text-gray-500 text-sm line-clamp-2 mb-6 leading-relaxed">{dest.description}</p>
+              <div className="flex items-center justify-between text-[10px] text-stone-400 font-black uppercase tracking-widest border-t border-gray-50 pt-6">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-3.5 h-3.5 text-emerald-500" />
+                  <span>{dest.duration}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Utensils className="w-3.5 h-3.5 text-emerald-500" />
+                  <span>{dest.mealPlan}</span>
+                </div>
               </div>
             </div>
           </div>
