@@ -64,6 +64,10 @@ import {
   Pencil,
   Plus,
   ShieldCheck,
+  Facebook,
+  Instagram,
+  Twitter,
+  Linkedin,
 } from "lucide-react";
 import { Book } from "lucide-react";
 import jsPDF from "jspdf";
@@ -1714,6 +1718,32 @@ function DestinationsPage() {
 // Contact Page
 function ContactPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [socialLinks, setSocialLinks] = useState({
+    facebook: "",
+    instagram: "",
+    twitter: "",
+    linkedin: ""
+  });
+
+  useEffect(() => {
+    async function loadSocial() {
+      try {
+        const keys = ["social_facebook", "social_instagram", "social_twitter", "social_linkedin"];
+        const results: any = {};
+        for (const key of keys) {
+          const res = await fetch(`/api/system-settings?key=${key}`);
+          const json = await res.json();
+          if (json.success && json.setting) {
+             results[key.replace("social_", "")] = json.setting.value;
+          }
+        }
+        setSocialLinks(prev => ({ ...prev, ...results }));
+      } catch (err) {
+        console.error("Failed to load social links", err);
+      }
+    }
+    loadSocial();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -1975,16 +2005,25 @@ function ContactPage() {
                 Follow Us
               </h3>
               <div className="flex space-x-4">
-                {["facebook", "instagram", "twitter", "linkedin"].map(
-                  (social) => (
-                    <button
-                      key={social}
-                      className="w-12 h-12 bg-stone-100 hover:bg-emerald-600 rounded-xl flex items-center justify-center transition-all group"
-                    >
-                      <MessageSquare className="w-5 h-5 text-stone-600 group-hover:text-white" />
-                    </button>
-                  )
-                )}
+                {[
+                  { id: "facebook", icon: Facebook, url: socialLinks.facebook },
+                  { id: "instagram", icon: Instagram, url: socialLinks.instagram },
+                  { id: "twitter", icon: Twitter, url: socialLinks.twitter },
+                  { id: "linkedin", icon: Linkedin, url: socialLinks.linkedin }
+                ].map((social) => (
+                  <a
+                    key={social.id}
+                    href={social.url || "#"}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={cn(
+                      "w-12 h-12 bg-stone-100 hover:bg-emerald-600 rounded-xl flex items-center justify-center transition-all group",
+                      !social.url && "opacity-50 pointer-events-none"
+                    )}
+                  >
+                    <social.icon className="w-5 h-5 text-stone-600 group-hover:text-white" />
+                  </a>
+                ))}
               </div>
             </Card>
           </div>
@@ -3250,6 +3289,10 @@ function SettingsEditor() {
   const [contactPhone, setContactPhone] = useState('');
   const [supportNumber, setSupportNumber] = useState('');
   const [address, setAddress] = useState('');
+  const [facebook, setFacebook] = useState('');
+  const [instagram, setInstagram] = useState('');
+  const [twitter, setTwitter] = useState('');
+  const [linkedin, setLinkedin] = useState('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -3281,6 +3324,22 @@ function SettingsEditor() {
         const aRes = await fetch('/api/system-settings?key=contact_address');
         const aJson = await aRes.json();
         if (aJson.success && aJson.setting) setAddress(aJson.setting.value || '');
+
+        const fbRes = await fetch('/api/system-settings?key=social_facebook');
+        const fbJson = await fbRes.json();
+        if (fbJson.success && fbJson.setting) setFacebook(fbJson.setting.value || '');
+
+        const igRes = await fetch('/api/system-settings?key=social_instagram');
+        const igJson = await igRes.json();
+        if (igJson.success && igJson.setting) setInstagram(igJson.setting.value || '');
+
+        const twRes = await fetch('/api/system-settings?key=social_twitter');
+        const twJson = await twRes.json();
+        if (twJson.success && twJson.setting) setTwitter(twJson.setting.value || '');
+
+        const liRes = await fetch('/api/system-settings?key=social_linkedin');
+        const liJson = await liRes.json();
+        if (liJson.success && liJson.setting) setLinkedin(liJson.setting.value || '');
       } catch (e) {
         console.error('Failed to load settings', e);
       }
@@ -3380,6 +3439,42 @@ function SettingsEditor() {
               await saveSetting('contact_address', address);
             }} disabled={loading}>
               Save Contact Details
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <h3 className="text-lg font-semibold">Social Media Links</h3>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label className="text-sm">Facebook URL</Label>
+              <Input value={facebook} onChange={(e) => setFacebook(e.target.value)} placeholder="https://facebook.com/..." />
+            </div>
+            <div>
+              <Label className="text-sm">Instagram URL</Label>
+              <Input value={instagram} onChange={(e) => setInstagram(e.target.value)} placeholder="https://instagram.com/..." />
+            </div>
+            <div>
+              <Label className="text-sm">Twitter URL</Label>
+              <Input value={twitter} onChange={(e) => setTwitter(e.target.value)} placeholder="https://twitter.com/..." />
+            </div>
+            <div>
+              <Label className="text-sm">LinkedIn URL</Label>
+              <Input value={linkedin} onChange={(e) => setLinkedin(e.target.value)} placeholder="https://linkedin.com/..." />
+            </div>
+          </div>
+          <div className="flex justify-end mt-3">
+            <Button onClick={async () => {
+              await saveSetting('social_facebook', facebook);
+              await saveSetting('social_instagram', instagram);
+              await saveSetting('social_twitter', twitter);
+              await saveSetting('social_linkedin', linkedin);
+            }} disabled={loading}>
+              Save Social Links
             </Button>
           </div>
         </CardContent>
@@ -8288,9 +8383,12 @@ export function Footer() {
                 </button>
               </li>
               <li>
-                <a href="#" className="hover:text-emerald-400 transition-colors">
+                <button 
+                  onClick={() => setPage("contact")} 
+                  className="hover:text-emerald-400 transition-colors"
+                >
                   FAQs
-                </a>
+                </button>
               </li>
             </ul>
           </div>
