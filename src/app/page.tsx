@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   Plane,
   MapPin,
@@ -68,6 +68,7 @@ import {
   Instagram,
   Twitter,
   Linkedin,
+  ArrowRightLeft,
 } from "lucide-react";
 import { Book } from "lucide-react";
 import jsPDF from "jspdf";
@@ -566,7 +567,7 @@ export function Navigation() {
                                 markAllNotificationsRead();
                                 toast.success("All notifications marked as read");
                               }}
-                              className="flex-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white py-1.5 px-3 rounded-md transition-colors"
+                              className="flex-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white py-2 px-3 rounded-xl transition-all shadow-md shadow-emerald-500/10 font-bold"
                             >
                               Mark All Read
                             </button>
@@ -577,7 +578,7 @@ export function Navigation() {
                                 deleteAllNotifications();
                                 toast.success("All notifications deleted");
                               }}
-                              className="flex-1 text-xs bg-red-500 hover:bg-red-600 text-white py-1.5 px-3 rounded-md transition-colors"
+                              className="flex-1 text-xs bg-red-500 hover:bg-red-600 text-white py-2 px-3 rounded-xl transition-all shadow-md shadow-red-500/10 font-bold"
                             >
                               Delete All
                             </button>
@@ -606,7 +607,7 @@ export function Navigation() {
                 {/* User Dropdown with Avatar */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button className="flex items-center gap-2 text-white hover:text-emerald-400 transition-colors py-1 px-2 rounded-full hover:bg-card/10">
+                    <button className="flex items-center gap-2 text-white hover:text-emerald-400 transition-all duration-300 py-1.5 px-3 rounded-full hover:bg-white/10 shadow-lg shadow-black/20">
                       <Avatar className="w-8 h-8 border-2 border-emerald-500">
                         <AvatarImage src={user?.avatar} alt={user?.firstName} />
                         <AvatarFallback className="bg-emerald-600 text-white text-xs font-semibold">
@@ -798,14 +799,14 @@ function HeroSection() {
           <Button
             onClick={() => setPage("flights")}
             variant="outline"
-            className="bg-card/10 hover:bg-card/20 backdrop-blur-sm text-white px-8 py-4 rounded-full font-semibold text-lg border border-white/30"
+            className="bg-stone-800/80 hover:bg-stone-700 text-white px-8 py-4 rounded-full font-semibold text-lg border border-white/30"
           >
             Book Flights
           </Button>
           <Button
             onClick={() => setPage("contact")}
             variant="outline"
-            className="bg-card/10 hover:bg-card/20 backdrop-blur-sm text-white px-8 py-4 rounded-full font-semibold text-lg border border-white/30"
+            className="bg-stone-800/80 hover:bg-stone-700 text-white px-8 py-4 rounded-full font-semibold text-lg border border-white/30"
           >
             Contact Us
           </Button>
@@ -846,12 +847,54 @@ function StatsSection() {
 
 // Featured Destinations
 function FeaturedDestinations() {
-  const { setPage, setSelectedDestination, convertFromUSD, currency: activeCurrency } = useVistaStore();
+  const { setPage, setSelectedDestination, convertFromUSD, currency: activeCurrency, wishlist, toggleWishlist, setWishlist } = useVistaStore();
+  const { isAuthenticated, user } = useAuthStore();
   const [mounted, setMounted] = useState(false);
   
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const isWishlisted = (id: string) => wishlist.some(d => d.id === id);
+
+  const handleToggleWishlist = async (e: React.MouseEvent, dest: Destination) => {
+    e.stopPropagation();
+    if (!isAuthenticated || !user) {
+      toast.error("Please sign in to add items to wishlist");
+      return;
+    }
+
+    const isCurrentlyInList = wishlist.some(d => d.id === dest.id);
+
+    try {
+      if (isCurrentlyInList) {
+        // Remove from wishlist
+        const res = await fetch(`/api/wishlist?userId=${encodeURIComponent(user.id)}&destinationId=${encodeURIComponent(dest.id)}`, {
+          method: 'DELETE',
+        });
+        const data = await res.json();
+        if (data.success) {
+          toggleWishlist(dest);
+          toast.success("Removed from wishlist");
+        }
+      } else {
+        // Add to wishlist
+        const res = await fetch('/api/wishlist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: user.id, destination: dest }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          toggleWishlist(dest);
+          toast.success("Added to wishlist");
+        }
+      }
+    } catch (err) {
+      console.error("Wishlist toggle failed", err);
+      toast.error("Something went wrong");
+    }
+  };
 
   const currencySymbol = activeCurrency === "USD" ? "$" : activeCurrency === "EUR" ? "€" : activeCurrency === "GBP" ? "£" : activeCurrency === "ZMW" ? "ZK" : "R";
   const featured = destinations.slice(0, 3);
@@ -920,7 +963,7 @@ function FeaturedDestinations() {
                   <span className="text-[10px] uppercase tracking-widest text-gray-400 font-bold block">All Inclusive</span>
                 </div>
               </div>
-              <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl h-14 font-bold text-base shadow-lg shadow-emerald-100">
+              <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-[32px] h-14 font-bold text-base shadow-lg shadow-emerald-100">
                 View Details
               </Button>
             </div>
@@ -1022,15 +1065,15 @@ function FlightsPage() {
   return (
     <section className="pt-20">
       {/* Header */}
-      <div className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white py-10 md:py-16">
+      <div className="bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-600 text-white py-10 md:py-16">
         <div className="max-w-7xl mx-auto px-4 md:px-6 text-center">
-          <div className="inline-block mb-2 md:mb-4">
-            <Plane className="w-8 h-8 md:w-10 md:h-10" />
+          <div className="inline-block mb-3 md:mb-4 p-3 bg-white/10 rounded-2xl backdrop-blur-sm">
+            <Plane className="w-8 h-8 md:w-10 md:h-10 text-white" />
           </div>
-          <h1 className="text-2xl md:text-4xl font-bold mb-3 md:mb-6 font-serif">
+          <h1 className="text-3xl md:text-5xl font-bold mb-3 md:mb-4 font-serif tracking-tight">
             Book Your Flight
           </h1>
-          <p className="text-sm md:text-xl text-emerald-100 max-w-2xl mx-auto">
+          <p className="text-sm md:text-lg text-emerald-50/90 max-w-2xl mx-auto leading-relaxed">
             Fly local within Zambia or explore international destinations. Best
             prices guaranteed with instant e-ticket delivery.
           </p>
@@ -1038,20 +1081,20 @@ function FlightsPage() {
       </div>
 
       {/* Search Box */}
-      <div className="max-w-7xl mx-auto px-6 py-12">
-        <div className="bg-card rounded-3xl shadow-2xl p-8 max-w-5xl mx-auto -mt-16 relative z-10 border border-border">
+      <div className="max-w-7xl mx-auto px-6 mb-12">
+        <div className="bg-white dark:bg-stone-900 rounded-[32px] shadow-2xl p-8 max-w-5xl mx-auto -mt-20 relative z-10 border-none transition-all duration-500 hover:scale-[1.005] hover:shadow-[0_50px_100px_-15px_rgba(0,0,0,0.25)]">
           {/* Trip Type Tabs */}
-          <div className="flex justify-center mb-8">
-            <div className="bg-stone-100 rounded-full p-1.5 inline-flex">
+          <div className="flex justify-center mb-10">
+            <div className="bg-stone-100 dark:bg-stone-800 p-1.5 rounded-full inline-flex">
               {["oneWay", "roundTrip", "multiCity"].map((type) => (
                 <button
                   key={type}
                   onClick={() => setTripType(type as typeof tripType)}
                   className={cn(
-                    "px-6 py-2.5 rounded-full text-sm font-semibold transition-all",
+                    "px-8 py-2.5 rounded-full text-sm font-bold transition-all duration-300",
                     tripType === type
-                      ? "bg-emerald-600 text-white"
-                      : "text-stone-600 hover:bg-stone-200"
+                      ? "bg-emerald-600 text-white shadow-lg shadow-emerald-500/30"
+                      : "text-stone-500 hover:text-stone-700 dark:hover:text-stone-300"
                   )}
                 >
                   {type === "oneWay"
@@ -1065,20 +1108,27 @@ function FlightsPage() {
           </div>
 
           {/* Flight Type */}
-          <div className="flex justify-center mb-6">
-            <div className="flex items-center space-x-4">
-              {["local", "international"].map((type) => (
-                <label key={type} className="flex items-center cursor-pointer">
-                  <input
-                    type="radio"
-                    name="flightType"
-                    value={type}
-                    checked={flightType === type}
-                    onChange={() => setFlightType(type as typeof flightType)}
-                    className="w-4 h-4 text-emerald-600"
-                  />
-                  <span className="ml-2 text-stone-700 font-medium">
-                    {type === "local" ? "🇿🇲 Local (Zambia)" : "🌍 International"}
+          <div className="flex justify-center mb-10">
+            <div className="flex items-center space-x-10">
+              {[
+                { id: "local", label: "Local (Zambia)", icon: "🇿🇲" },
+                { id: "international", label: "International", icon: "🌍" }
+              ].map((item) => (
+                <label key={item.id} className="flex items-center group cursor-pointer">
+                  <div className="relative flex items-center justify-center">
+                    <input
+                      type="radio"
+                      name="flightType"
+                      value={item.id}
+                      checked={flightType === item.id}
+                      onChange={() => setFlightType(item.id as typeof flightType)}
+                      className="peer sr-only"
+                    />
+                    <div className="w-5 h-5 rounded-full border-2 border-stone-300 peer-checked:border-emerald-600 peer-checked:border-[6px] transition-all group-hover:border-stone-400"></div>
+                  </div>
+                  <span className="ml-3 text-stone-700 dark:text-stone-200 font-bold flex items-center gap-2">
+                    <span className="text-xl">{item.icon}</span>
+                    {item.label}
                   </span>
                 </label>
               ))}
@@ -1086,77 +1136,77 @@ function FlightsPage() {
           </div>
 
           {/* Search Form */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-            <div className="lg:col-span-1">
-              <Label className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-2">
+          <div className="flex flex-col lg:flex-row items-end gap-4 mb-10">
+            <div className="flex-1 w-full lg:w-auto space-y-2">
+              <Label className="text-[10px] uppercase font-black text-stone-400 tracking-widest ml-1">
                 From
               </Label>
               <Select value={fromAirport} onValueChange={setFromAirport}>
-                <SelectTrigger className="w-full bg-muted/30 border-gray-200">
+                <SelectTrigger className="w-full h-14 bg-stone-50 dark:bg-stone-800 border-none shadow-sm rounded-xl px-5 text-base font-bold">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="rounded-xl border-none shadow-2xl bg-white dark:bg-stone-950 text-stone-950 dark:text-stone-50">
                   {airports.map((airport) => (
-                    <SelectItem key={airport.code} value={airport.code}>
-                      {airport.code} - {airport.city}
+                    <SelectItem key={airport.code} value={airport.code} className="rounded-lg py-3">
+                      <span className="font-bold">{airport.code}</span> - {airport.city}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-
-            <div className="lg:col-span-1 flex items-end justify-center pb-3">
+          
+            <div className="flex items-center justify-center pb-1">
               <button
                 onClick={swapAirports}
-                className="w-10 h-10 bg-emerald-100 hover:bg-emerald-200 rounded-full flex items-center justify-center transition-colors"
+                className="w-12 h-12 bg-emerald-50 dark:bg-emerald-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center transition-all duration-300 shadow-sm hover:rotate-180"
                 title="Swap"
               >
-                <ArrowRight className="w-4 h-4 text-emerald-600 rotate-90" />
+                <ArrowRightLeft className="w-5 h-5" />
               </button>
             </div>
-
-            <div className="lg:col-span-1">
-              <Label className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-2">
+          
+            <div className="flex-1 w-full lg:w-auto space-y-2">
+              <Label className="text-[10px] uppercase font-black text-stone-400 tracking-widest ml-1">
                 To
               </Label>
               <Select value={toAirport} onValueChange={setToAirport}>
-                <SelectTrigger className="w-full bg-muted/30 border-gray-200">
+                <SelectTrigger className="w-full h-14 bg-stone-50 dark:bg-stone-800 border-none shadow-sm rounded-xl px-5 text-base font-bold">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="rounded-xl border-none shadow-2xl bg-white dark:bg-stone-950 text-stone-950 dark:text-stone-50">
                   {airports.map((airport) => (
-                    <SelectItem key={airport.code} value={airport.code}>
-                      {airport.code} - {airport.city}
+                    <SelectItem key={airport.code} value={airport.code} className="rounded-lg py-3">
+                      <span className="font-bold">{airport.code}</span> - {airport.city}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-
-            <div className="lg:col-span-1">
-              <Label className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-2">
+          
+            <div className="flex-1 w-full lg:w-auto space-y-2">
+              <Label className="text-[10px] uppercase font-black text-stone-400 tracking-widest ml-1">
                 Departure
               </Label>
               <Input
                 type="date"
                 value={departureDate}
                 onChange={(e) => setDepartureDate(e.target.value)}
-                className="w-full bg-muted/30 border-gray-200"
+                className="w-full h-14 bg-stone-50 dark:bg-stone-800 border-none shadow-sm rounded-xl px-5 text-base font-bold"
               />
             </div>
-
-            <div className="lg:col-span-1">
-              <Label className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-2">
+          
+            <div className="flex-1 w-full lg:w-auto space-y-2">
+              <Label className="text-[10px] uppercase font-black text-stone-400 tracking-widest ml-1">
                 Passengers
               </Label>
               <Select value={passengers} onValueChange={setPassengers}>
-                <SelectTrigger className="w-full bg-muted/30 border-gray-200">
+                <SelectTrigger className="w-full h-14 bg-stone-50 dark:bg-stone-800 border-none shadow-sm rounded-xl px-5 text-base font-bold">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
-                  {[1, 2, 3, 4, 5].map((num) => (
-                    <SelectItem key={num} value={num.toString()}>
-                      {num} Passenger{num > 1 ? "s" : ""}
+                <SelectContent className="rounded-xl border-none shadow-2xl bg-white dark:bg-stone-950 text-stone-950 dark:text-stone-50">
+                  {[1, 2, 3, 4, 5, 10].map((num) => (
+                    <SelectItem key={num} value={num.toString()} className="rounded-lg py-3">
+                      <span className="font-bold">{num}</span> Passenger{num > 1 ? "s" : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1165,41 +1215,45 @@ function FlightsPage() {
           </div>
 
           {tripType === "roundTrip" && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-              <div className="md:col-span-1">
-                <Label className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10 p-6 bg-stone-50/50 dark:bg-stone-800/30 rounded-3xl animate-in fade-in slide-in-from-top-4 duration-300">
+              <div className="space-y-2">
+                <Label className="text-[10px] uppercase font-black text-stone-400 tracking-widest ml-1">
                   Return Date
                 </Label>
                 <Input
                   type="date"
                   value={returnDate}
                   onChange={(e) => setReturnDate(e.target.value)}
-                  className="w-full bg-muted/30 border-gray-200"
+                  className="w-full h-14 bg-white dark:bg-stone-800 border-none shadow-sm rounded-xl px-5 text-base font-bold"
                 />
               </div>
             </div>
           )}
 
-          <div className="flex flex-wrap gap-4 items-center justify-between">
-            <div className="flex items-center space-x-6">
-              <label className="flex items-center">
-                <Checkbox />
-                <span className="ml-2 text-sm text-stone-600">
+          <div className="flex flex-col sm:flex-row gap-6 items-center justify-between mt-4">
+            <div className="flex items-center space-x-8">
+              <label className="flex items-center group cursor-pointer">
+                <div className="relative flex items-center justify-center">
+                  <Checkbox className="w-5 h-5 rounded-md border-2 border-stone-300 data-[state=checked]:bg-emerald-600 data-[state=checked]:border-none transition-all" />
+                </div>
+                <span className="ml-3 text-sm font-bold text-stone-600 dark:text-stone-400 group-hover:text-stone-800 dark:group-hover:text-stone-200 transition-colors">
                   Direct flights only
                 </span>
               </label>
-              <label className="flex items-center">
-                <Checkbox />
-                <span className="ml-2 text-sm text-stone-600">
+              <label className="flex items-center group cursor-pointer">
+                <div className="relative flex items-center justify-center">
+                  <Checkbox className="w-5 h-5 rounded-md border-2 border-stone-300 data-[state=checked]:bg-emerald-600 data-[state=checked]:border-none transition-all" />
+                </div>
+                <span className="ml-3 text-sm font-bold text-stone-600 dark:text-stone-400 group-hover:text-stone-800 dark:group-hover:text-stone-200 transition-colors">
                   Include nearby airports
                 </span>
               </label>
             </div>
             <Button
               onClick={searchFlights}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-xl font-semibold shadow-lg shadow-emerald-500/30"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white px-10 h-14 rounded-2xl font-black shadow-xl shadow-emerald-500/20 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] w-full sm:w-auto"
             >
-              <Search className="w-4 h-4 mr-2" />
+              <Search className="w-5 h-5 mr-3" />
               Search Flights
             </Button>
           </div>
@@ -1207,7 +1261,7 @@ function FlightsPage() {
 
         {/* Flight Results */}
         {showResults && (
-          <div className="max-w-5xl mx-auto mt-12">
+          <div id="flight-results" className="max-w-5xl mx-auto mt-12 scroll-mt-24">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-xl font-bold text-foreground flex items-center gap-2">
                 <Plane className="w-5 h-5 text-emerald-600" />
@@ -1216,7 +1270,7 @@ function FlightsPage() {
               <div className="flex items-center space-x-2">
                 <span className="text-sm text-gray-500">Sort by:</span>
                 <Select defaultValue="price">
-                  <SelectTrigger className="w-40 bg-card border-gray-200">
+                  <SelectTrigger className="w-40 bg-card border-none shadow-sm rounded-xl">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1232,7 +1286,7 @@ function FlightsPage() {
               {searchResults.map((flight) => (
                 <div
                   key={flight.id}
-                  className="bg-card rounded-2xl shadow-lg p-6 border border-border hover:shadow-xl transition-all"
+                  className="bg-white dark:bg-stone-900 rounded-[32px] shadow-xl p-8 border-none hover:shadow-2xl hover:scale-[1.01] transition-all duration-300"
                 >
                   <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                     <div className="flex items-center space-x-4">
@@ -1315,11 +1369,43 @@ function FlightsPage() {
             {popularRoutes.map((route, index) => (
               <div
                 key={index}
-                className="bg-card rounded-2xl shadow-lg p-6 border border-border hover:shadow-xl transition-all cursor-pointer"
+                className="bg-white dark:bg-stone-900 rounded-[32px] shadow-xl p-8 border-none hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 cursor-pointer group"
                 onClick={() => {
                   setFromAirport(route.from);
                   setToAirport(route.to);
-                  setDepartureDate(new Date().toISOString().split("T")[0]);
+                  const today = new Date().toISOString().split("T")[0];
+                  setDepartureDate(today);
+                  setFlightType("local");
+                  setTripType("oneWay");
+                  
+                  // Directly trigger search results
+                  const flights = airlines.map((airline, index) => ({
+                    id: `flight-${index}-${Date.now()}`,
+                    airline: airline.name,
+                    code: `${airline.code} ${100 + index}`,
+                    from: route.from,
+                    to: route.to,
+                    fromCity: route.fromCity,
+                    toCity: route.toCity,
+                    departTime: `${(8 + index * 3).toString().padStart(2, "0")}:00`,
+                    arriveTime: `${(10 + index * 3).toString().padStart(2, "0")}:30`,
+                    duration: route.duration,
+                    price: route.price,
+                    stops: route.stops,
+                  }));
+                  
+                  setSearchResults(flights);
+                  setShowResults(true);
+                  
+                  // Scroll to results
+                  setTimeout(() => {
+                    const resultsElement = document.getElementById('flight-results');
+                    if (resultsElement) {
+                      resultsElement.scrollIntoView({ behavior: 'smooth' });
+                    }
+                  }, 100);
+                  
+                  toast.success(`Showing flights for ${route.fromCity} to ${route.toCity}`);
                 }}
               >
                 <div className="flex items-center justify-between mb-4">
@@ -1329,7 +1415,7 @@ function FlightsPage() {
                     </p>
                     <p className="text-sm text-gray-500">{route.fromCity}</p>
                   </div>
-                  <ArrowRight className="w-4 h-4 text-emerald-600" />
+                  <ArrowRight className="w-5 h-5 text-emerald-600 group-hover:translate-x-1 transition-transform" />
                   <div className="text-center">
                     <p className="text-2xl font-bold text-foreground">
                       {route.to}
@@ -1369,6 +1455,11 @@ function DestinationsPage() {
   const currencySymbol = activeCurrency === "USD" ? "$" : activeCurrency === "EUR" ? "€" : activeCurrency === "GBP" ? "£" : activeCurrency === "ZMW" ? "ZK" : "R";
   const { isAuthenticated, user } = useAuthStore();
   const [filter, setFilter] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [priceRange, setPriceRange] = useState({ min: 0, max: 5000 });
+  const [minRating, setMinRating] = useState("all");
+  const [sortBy, setSortBy] = useState("popular");
   const [destinationModalOpen, setDestinationModalOpen] = useState(false);
   const [selectedDest, setSelectedDest] = useState<Destination | null>(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
@@ -1443,12 +1534,46 @@ function DestinationsPage() {
 
   const isWishlisted = (id: string) => wishlist.some(d => d.id === id);
 
-  const filteredDestinations =
-    filter === "all"
-      ? destinations
-      : destinations.filter((d) =>
-        d.tags.map((t) => t.toLowerCase()).includes(filter.toLowerCase())
+  const filteredDestinations = useMemo(() => {
+    let result = [...destinations];
+
+    // 1. Category Filter
+    if (filter !== "all") {
+      result = result.filter(d => 
+        d.tags.some(t => t.toLowerCase() === filter.toLowerCase())
       );
+    }
+
+    // 2. Search Query
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(d => 
+        d.title.toLowerCase().includes(q) || 
+        d.location.toLowerCase().includes(q)
+      );
+    }
+
+    // 3. Price Range
+    result = result.filter(d => 
+      d.price >= priceRange.min && d.price <= priceRange.max
+    );
+
+    // 4. Min Rating
+    if (minRating !== "all") {
+      const min = parseFloat(minRating);
+      result = result.filter(d => d.rating >= min);
+    }
+
+    // 5. Sorting
+    result.sort((a, b) => {
+      if (sortBy === "price-low") return a.price - b.price;
+      if (sortBy === "price-high") return b.price - a.price;
+      if (sortBy === "rating") return b.rating - a.rating;
+      return 0; // "popular" (original order)
+    });
+
+    return result;
+  }, [destinations, filter, searchQuery, priceRange, minRating, sortBy]);
 
   const filters = [
     { label: "All", value: "all" },
@@ -1478,43 +1603,132 @@ function DestinationsPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-6 py-12">
-        {/* Filters */}
-        <div className="bg-card rounded-2xl shadow-lg p-6 mb-8 border border-border">
-          <div className="flex flex-wrap gap-4 items-center justify-between">
-            <div className="flex flex-wrap gap-2">
-              {filters.map((f) => (
-                <button
-                  key={f.value}
-                  onClick={() => setFilter(f.value)}
-                  className={cn(
-                    "px-4 py-2 rounded-full text-sm font-medium transition-all",
-                    filter === f.value
-                      ? "bg-emerald-600 text-white"
-                      : "bg-stone-100 text-stone-600 hover:bg-emerald-100"
-                  )}
-                >
-                  {f.label}
-                </button>
-              ))}
-            </div>
-            <div className="flex items-center space-x-2">
+        {/* Search & Filter Header */}
+        <div className="bg-white dark:bg-stone-900 rounded-[32px] shadow-2xl p-8 mb-8 border-none transition-all duration-500 hover:scale-[1.005] hover:shadow-[0_50px_100px_-15px_rgba(0,0,0,0.15)]">
+          {/* Top Row: Search + Sort + Toggle */}
+          <div className="flex flex-col md:flex-row gap-4 mb-8">
+            <div className="relative flex-1">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <Input
-                placeholder="Search destinations..."
-                className="w-48 bg-muted/30 border-gray-200"
+                placeholder="Search destinations by name, location..."
+                className="pl-12 h-14 bg-stone-50 dark:bg-stone-800 border-none rounded-xl text-foreground focus:ring-emerald-500"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
               />
-              <Select>
-                <SelectTrigger className="w-36 bg-muted/30 border-gray-200">
-                  <SelectValue placeholder="All Prices" />
+            </div>
+            <div className="flex gap-4">
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="w-full md:w-48 h-14 bg-stone-50 border-none shadow-sm rounded-xl px-4 font-medium">
+                  <SelectValue placeholder="Sort By" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Prices</SelectItem>
-                  <SelectItem value="under500">Under $500</SelectItem>
-                  <SelectItem value="500-1000">$500 - $1000</SelectItem>
-                  <SelectItem value="1000-2000">$1000 - $2000</SelectItem>
-                  <SelectItem value="over2000">Over $2000</SelectItem>
+                <SelectContent className="rounded-xl border-none shadow-2xl">
+                  <SelectItem value="popular">Most Popular</SelectItem>
+                  <SelectItem value="price-low">Price: Low to High</SelectItem>
+                  <SelectItem value="price-high">Price: High to Low</SelectItem>
+                  <SelectItem value="rating">Top Rated</SelectItem>
                 </SelectContent>
               </Select>
+              <Button
+                variant="outline"
+                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                className={cn(
+                  "h-14 px-6 rounded-xl border-gray-100 font-bold gap-2 transition-all",
+                  showAdvancedFilters ? "bg-emerald-600 text-white border-emerald-600 shadow-lg shadow-emerald-200" : "bg-stone-50 hover:bg-stone-100"
+                )}
+              >
+                <Settings className="w-5 h-5" />
+                <span>Filters</span>
+              </Button>
             </div>
+          </div>
+
+          {/* Category Chips */}
+          <div className="flex flex-wrap gap-2 mb-6">
+            {filters.map((f) => (
+              <button
+                key={f.value}
+                onClick={() => setFilter(f.value)}
+                className={cn(
+                  "px-6 py-2.5 rounded-full text-xs font-black uppercase tracking-widest transition-all",
+                  filter === f.value
+                    ? "bg-emerald-600 text-white shadow-lg shadow-emerald-100"
+                    : "bg-stone-100 text-stone-500 hover:bg-stone-200"
+                )}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Advanced Filters (Collapsible) */}
+          {showAdvancedFilters && (
+            <div className="pt-8 mt-6 border-t border-gray-100 animate-in fade-in slide-in-from-top-4 duration-300">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
+                {/* Price Range */}
+                <div className="space-y-4">
+                  <Label className="text-[10px] uppercase tracking-widest font-black text-gray-400">Price Range (USD)</Label>
+                  <div className="flex items-center gap-3">
+                    <Input
+                      type="number"
+                      placeholder="Min"
+                      className="h-12 bg-stone-50 dark:bg-stone-800 border-none rounded-xl text-center font-bold"
+                      value={priceRange.min}
+                      onChange={(e) => setPriceRange({ ...priceRange, min: Number(e.target.value) })}
+                    />
+                    <span className="text-gray-300">—</span>
+                    <Input
+                      type="number"
+                      placeholder="Max"
+                      className="h-12 bg-stone-50 dark:bg-stone-800 border-none rounded-xl text-center font-bold"
+                      value={priceRange.max}
+                      onChange={(e) => setPriceRange({ ...priceRange, max: Number(e.target.value) })}
+                    />
+                  </div>
+                </div>
+
+                {/* Rating Filter */}
+                <div className="space-y-4">
+                  <Label className="text-[10px] uppercase tracking-widest font-black text-gray-400">Minimum Rating</Label>
+                  <Select value={minRating} onValueChange={setMinRating}>
+                    <SelectTrigger className="w-full h-12 bg-stone-50 border-none shadow-sm rounded-xl px-4 font-bold text-emerald-600">
+                      <SelectValue placeholder="Any Rating" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-none shadow-2xl">
+                      <SelectItem value="all">Any Rating</SelectItem>
+                      <SelectItem value="4.5">4.5+ Stars</SelectItem>
+                      <SelectItem value="4.0">4.0+ Stars</SelectItem>
+                      <SelectItem value="3.5">3.5+ Stars</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Quick Filters */}
+                <div className="space-y-4">
+                  <Label className="text-[10px] uppercase tracking-widest font-black text-gray-400">Quick Filters</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { label: "Under $500", min: 0, max: 500 },
+                      { label: "$500-$1500", min: 500, max: 1500 },
+                      { label: "$1500+", min: 1500, max: 10000 },
+                    ].map((btn) => (
+                      <button
+                        key={btn.label}
+                        onClick={() => setPriceRange({ min: btn.min, max: btn.max })}
+                        className="px-4 py-2 bg-stone-50 hover:bg-emerald-50 hover:text-emerald-600 border border-gray-100 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                      >
+                        {btn.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-8">
+            <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest">
+              Showing {filteredDestinations.length} of {destinations.length} destinations
+            </p>
           </div>
         </div>
 
@@ -1523,7 +1737,7 @@ function DestinationsPage() {
           {filteredDestinations.map((dest, index) => (
             <div
               key={dest.id}
-              className="group bg-card rounded-[32px] shadow-xl overflow-hidden border-none transition-all duration-300 hover:shadow-2xl cursor-pointer"
+              className="group bg-white dark:bg-stone-900 rounded-[32px] shadow-xl overflow-hidden border-none transition-all duration-500 hover:shadow-2xl hover:scale-[1.02] cursor-pointer"
               onClick={() => openDestinationModal(dest)}
             >
               <div className="relative h-64 overflow-hidden">
@@ -1567,7 +1781,7 @@ function DestinationsPage() {
                 <p className="text-gray-500 text-sm line-clamp-2 mb-6">
                   {dest.description}
                 </p>
-                <div className="flex items-center justify-between border-t border-gray-50 pt-6 mb-8">
+                <div className="flex items-center justify-between border-t border-stone-50 dark:border-stone-800 pt-6 mb-8">
                   <div>
                     <span className="text-[10px] uppercase tracking-widest text-gray-400 font-bold block mb-1">From</span>
                     <p className="text-2xl font-black text-emerald-600">
@@ -1583,7 +1797,7 @@ function DestinationsPage() {
                     <span className="text-[10px] uppercase tracking-widest text-gray-400 font-bold block">{dest.mealPlan}</span>
                   </div>
                 </div>
-                <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl h-14 font-bold text-base shadow-lg shadow-emerald-100">
+                <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-[32px] h-14 font-bold text-base shadow-lg shadow-emerald-100">
                   View Details
                 </Button>
               </div>
@@ -1674,7 +1888,7 @@ function DestinationsPage() {
                       }}
                       trigger={
                         <Button
-                          className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-6 rounded-2xl font-bold text-xl shadow-xl shadow-emerald-600/25 hover:shadow-emerald-600/40 hover:scale-[1.02] transition-all duration-200"
+                          className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-6 rounded-[32px] font-bold text-xl shadow-xl shadow-emerald-600/25 hover:shadow-emerald-600/40 hover:scale-[1.02] transition-all duration-200"
                         >
                           Book Now
                         </Button>
@@ -1683,10 +1897,10 @@ function DestinationsPage() {
                     {isAuthenticated && (
                       <button
                         className={cn(
-                          "flex-shrink-0 flex items-center justify-center w-14 rounded-2xl border-2 transition-all duration-200",
+                          "flex-shrink-0 flex items-center justify-center w-14 rounded-[32px] border-2 transition-all duration-200",
                           isWishlisted(selectedDest.id)
                             ? "bg-red-50 border-red-400 text-red-500 shadow-lg shadow-red-200"
-                            : "border-stone-200 text-gray-400 hover:border-red-300 hover:text-red-400 hover:bg-red-50"
+                            : "bg-stone-50 text-gray-400 hover:bg-red-50 hover:text-red-400 border-none shadow-sm"
                         )}
                         onClick={(e) => handleToggleWishlist(e, selectedDest)}
                         title={isWishlisted(selectedDest.id) ? "Remove from Wishlist" : "Save to Wishlist"}
@@ -1790,7 +2004,7 @@ function ContactPage() {
       <div className="max-w-7xl mx-auto px-6 py-20">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
           {/* Contact Form */}
-          <Card className="rounded-3xl shadow-xl p-8 lg:p-12 border-0">
+          <Card className="rounded-[32px] shadow-xl p-8 lg:p-12 border-0">
             <h2 className="text-3xl font-bold mb-2 text-foreground">
               Send us a Message
             </h2>
@@ -1804,7 +2018,7 @@ function ContactPage() {
                   </Label>
                   <Input
                     required
-                    className="bg-muted/30 border-gray-200 rounded-xl"
+                    className="bg-muted/50 border-none rounded-xl"
                   />
                 </div>
                 <div>
@@ -1813,7 +2027,7 @@ function ContactPage() {
                   </Label>
                   <Input
                     required
-                    className="bg-muted/30 border-gray-200 rounded-xl"
+                    className="bg-muted/50 border-none rounded-xl"
                   />
                 </div>
               </div>
@@ -1826,7 +2040,7 @@ function ContactPage() {
                   <Input
                     type="email"
                     required
-                    className="bg-muted/30 border-gray-200 rounded-xl"
+                    className="bg-muted/50 border-none rounded-xl"
                   />
                 </div>
                 <div>
@@ -1835,7 +2049,7 @@ function ContactPage() {
                   </Label>
                   <Input
                     type="tel"
-                    className="bg-muted/30 border-gray-200 rounded-xl"
+                    className="bg-muted/50 border-none rounded-xl"
                   />
                 </div>
               </div>
@@ -1845,7 +2059,7 @@ function ContactPage() {
                   Subject *
                 </Label>
                 <Select required>
-                  <SelectTrigger className="bg-muted/30 border-gray-200 rounded-xl">
+                  <SelectTrigger className="bg-muted/50 border-none rounded-xl">
                     <SelectValue placeholder="Select a subject" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1905,7 +2119,7 @@ function ContactPage() {
           {/* Contact Info */}
           <div className="space-y-8">
             {/* Contact Cards */}
-            <Card className="rounded-3xl shadow-xl p-8 border-0">
+            <Card className="rounded-[32px] shadow-xl p-8 border-0">
               <h3 className="text-2xl font-bold mb-6 text-foreground">
                 Contact Information
               </h3>
@@ -1976,7 +2190,7 @@ function ContactPage() {
             </Card>
 
             {/* Map */}
-            <Card className="rounded-3xl shadow-xl overflow-hidden border-0">
+            <Card className="rounded-[32px] shadow-xl overflow-hidden border-0">
               <div className="h-64 bg-gray-200 relative">
                 <img
                   src="https://images.unsplash.com/photo-1524661135-423995f22d0b?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80"
@@ -1993,7 +2207,7 @@ function ContactPage() {
             </Card>
 
             {/* Social Media */}
-            <Card className="rounded-3xl shadow-xl p-8 border-0">
+            <Card className="rounded-[32px] shadow-xl p-8 border-0">
               <h3 className="text-2xl font-bold mb-6 text-foreground">
                 Follow Us
               </h3>
@@ -2035,7 +2249,7 @@ function ContactPage() {
               <AccordionItem
                 key={index}
                 value={`item-${index}`}
-                className="bg-card rounded-2xl shadow-lg px-6 border-0"
+                className="bg-card rounded-[32px] shadow-lg px-6 border-0"
               >
                 <AccordionTrigger className="text-left font-semibold text-foreground hover:text-emerald-600 py-4">
                   {item.question}
@@ -2192,7 +2406,7 @@ function TicketDetailModal({
                       <Hotel className="w-3 h-3" /> {ticket.selectedAccommodation.label}
                     </span>
                   )}
-                  <span className="bg-stone-100 text-stone-600 px-2 py-1 rounded-md border border-stone-200">
+                  <span className="bg-stone-100 text-stone-600 px-2 py-1 rounded-md border-none shadow-sm">
                     {ticket.room}
                   </span>
                 </div>
@@ -2224,7 +2438,7 @@ function TicketDetailModal({
                     <p className="text-xs text-gray-500 uppercase mb-1">Optional Add-ons</p>
                     <div className="flex flex-wrap gap-2">
                       {ticket.selectedAddOns.map(a => (
-                        <span key={a.label} className="text-xs font-semibold text-stone-700 bg-card border border-stone-200 px-2 py-1 rounded-lg">
+                        <span key={a.label} className="text-xs font-semibold text-stone-700 bg-card border-none px-2 py-1 rounded-lg shadow-sm">
                           + {a.label}
                         </span>
                       ))}
@@ -2767,8 +2981,8 @@ function NotificationSection() {
               <div
                 key={notification.id}
                 className={cn(
-                  "bg-card rounded-lg shadow-sm border transition-all cursor-pointer",
-                  notification.isRead ? "border-gray-200" : "border-emerald-200 bg-emerald-50/50",
+                  "bg-white dark:bg-stone-900 rounded-[32px] shadow-xl border-none transition-all cursor-pointer hover:shadow-2xl hover:scale-[1.01]",
+                  notification.isRead ? "border-none shadow-sm" : "border-none bg-emerald-50/50 shadow-md",
                   isExpanded && "ring-2 ring-emerald-400"
                 )}
               >
@@ -2948,7 +3162,7 @@ function ProfileSection() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         
         {/* Left Card: Profile Summary */}
-        <Card className="lg:col-span-4 rounded-3xl border border-border shadow-sm bg-card overflow-hidden p-8 flex flex-col items-center text-center">
+        <Card className="lg:col-span-4 rounded-[32px] border-none shadow-2xl bg-white dark:bg-stone-900 overflow-hidden p-8 flex flex-col items-center text-center">
           <div className="relative group/avatar mb-6">
             <Avatar className="w-40 h-40 border-0 shadow-lg relative">
               <AvatarImage src={avatarPreview || undefined} alt={user.firstName} className="object-cover" />
@@ -2958,9 +3172,9 @@ function ProfileSection() {
             </Avatar>
             <label
               htmlFor="avatar-upload-final"
-              className="absolute bottom-1 right-1 w-9 h-9 bg-emerald-500 text-white rounded-full flex items-center justify-center shadow-lg cursor-pointer hover:bg-emerald-600 transition-colors z-20 border-4 border-white"
+              className="absolute bottom-1 right-1 w-10 h-10 bg-[#4CAF50] text-white rounded-full flex items-center justify-center shadow-lg cursor-pointer hover:bg-[#43A047] transition-colors z-20 border-4 border-white"
             >
-              <Camera className="w-4 h-4" />
+              <Camera className="w-5 h-5 shadow-sm" />
             </label>
             <input
               id="avatar-upload-final"
@@ -2979,18 +3193,18 @@ function ProfileSection() {
             <p className="text-stone-400 font-medium text-sm">{user.email}</p>
           </div>
 
-          <div className="flex flex-wrap justify-center gap-2">
-            <div className="px-3 py-1 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-md border border-emerald-200/30">
+          <div className="flex flex-wrap justify-center gap-3">
+            <div className="px-5 py-1.5 bg-[#E8F5E9] text-[#2E7D32] text-[11px] font-bold rounded-full border-none">
               {loyaltyInfo.currentTier.name} Member
             </div>
-            <div className="px-3 py-1 bg-card text-stone-500 text-[10px] font-bold rounded-md border border-stone-200">
+            <div className="px-5 py-1.5 bg-white dark:bg-stone-800 text-stone-500 text-[11px] font-bold rounded-full border border-stone-100 dark:border-stone-700 shadow-sm">
               Since {new Date(loyaltyInfo.memberSince || user.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
             </div>
           </div>
         </Card>
 
         {/* Right Card: Personal Information */}
-        <Card className="lg:col-span-8 rounded-3xl border border-border shadow-sm bg-card overflow-hidden">
+        <Card className="lg:col-span-8 rounded-[32px] border-none shadow-2xl bg-white dark:bg-stone-900 overflow-hidden">
           <CardHeader className="p-8 pb-4 border-0 flex flex-row items-center justify-between">
             <h2 className="text-lg font-bold text-foreground">Personal Information</h2>
             <button
@@ -3006,44 +3220,36 @@ function ProfileSection() {
               <form onSubmit={handleSubmit} className="space-y-6 animate-in fade-in duration-300">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label className="text-xs font-bold text-foreground">First Name</Label>
+                    <Label className="text-xs font-bold text-foreground ml-1">Full Name</Label>
                     <Input
                       name="firstName"
-                      value={formData.firstName}
-                      onChange={handleInputChange}
-                      placeholder="First Name"
-                      className="h-11 rounded-lg border-stone-200 bg-card focus-visible:ring-emerald-500 text-sm font-medium px-4 shadow-none"
+                      value={formData.firstName + ' ' + formData.lastName}
+                      onChange={(e) => {
+                        const parts = e.target.value.split(' ');
+                        setFormData({...formData, firstName: parts[0] || '', lastName: parts.slice(1).join(' ') || ''});
+                      }}
+                      placeholder="John Doe"
+                      className="h-14 rounded-xl border border-stone-100 dark:border-stone-800 bg-stone-50/30 dark:bg-stone-900 shadow-none px-5 text-sm font-medium"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs font-bold text-foreground opacity-0 md:block hidden">Last Name</Label>
+                    <Label className="text-xs font-bold text-foreground ml-1">Email</Label>
                     <Input
-                      name="lastName"
-                      value={formData.lastName}
-                      onChange={handleInputChange}
-                      placeholder="Last Name"
-                      className="h-11 rounded-lg border-stone-200 bg-card focus-visible:ring-emerald-500 text-sm font-medium px-4 shadow-none"
+                      name="email"
+                      value={formData.email}
+                      disabled
+                      className="h-14 rounded-xl border border-stone-100 dark:border-stone-800 bg-stone-50/20 dark:bg-stone-900/50 text-stone-400 cursor-not-allowed px-5 text-sm font-medium shadow-none"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-xs font-bold text-foreground">Email</Label>
-                  <Input
-                    name="email"
-                    value={formData.email}
-                    disabled
-                    className="h-11 rounded-lg border-stone-200 bg-muted/30 text-sm font-medium text-stone-400 cursor-not-allowed px-4 shadow-none"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-xs font-bold text-foreground">Phone</Label>
+                  <Label className="text-xs font-bold text-foreground ml-1">Phone</Label>
                   <Input
                     name="phone"
                     value={formData.phone}
                     onChange={handleInputChange}
-                    className="h-11 rounded-lg border-stone-200 bg-card focus-visible:ring-emerald-500 text-sm font-medium px-4 shadow-none"
+                    className="h-14 rounded-xl border border-stone-100 dark:border-stone-800 bg-stone-50/30 dark:bg-stone-900 shadow-none px-5 text-sm font-medium"
                     placeholder="+260 977 123 456"
                   />
                 </div>
@@ -3059,22 +3265,22 @@ function ProfileSection() {
                 </div>
               </form>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-12 animate-in fade-in duration-500">
-                <div className="space-y-1.5">
-                  <p className="text-xs font-bold text-foreground">Full Name</p>
-                  <div className="h-11 rounded-lg border border-border/50 bg-card flex items-center px-4 text-sm font-medium text-stone-500 shadow-none">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-y-8 gap-x-12 animate-in fade-in duration-500">
+                <div className="space-y-2">
+                  <p className="text-sm font-bold text-foreground ml-1">Full Name</p>
+                  <div className="h-14 rounded-xl border border-stone-100 dark:border-stone-800 bg-stone-50/30 dark:bg-stone-900 flex items-center px-5 text-sm font-medium text-stone-400">
                     {user.firstName} {user.lastName}
                   </div>
                 </div>
-                <div className="space-y-1.5">
-                  <p className="text-xs font-bold text-foreground">Email</p>
-                  <div className="h-11 rounded-lg border border-border/50 bg-card flex items-center px-4 text-sm font-medium text-stone-500 shadow-none">
+                <div className="space-y-2">
+                  <p className="text-sm font-bold text-foreground ml-1">Email</p>
+                  <div className="h-14 rounded-xl border border-stone-100 dark:border-stone-800 bg-stone-50/30 dark:bg-stone-900 flex items-center px-5 text-sm font-medium text-stone-400">
                     {user.email}
                   </div>
                 </div>
-                <div className="space-y-1.5 col-span-1 md:col-span-2">
-                  <p className="text-xs font-bold text-foreground">Phone</p>
-                  <div className="h-11 rounded-lg border border-border/50 bg-card flex items-center px-4 text-sm font-medium text-stone-500 shadow-none">
+                <div className="space-y-2 col-span-1 md:col-span-2">
+                  <p className="text-sm font-bold text-foreground ml-1">Phone</p>
+                  <div className="h-14 rounded-xl border border-stone-100 dark:border-stone-800 bg-stone-50/30 dark:bg-stone-900 flex items-center px-5 text-sm font-medium text-stone-400">
                     {user.phone || '+260 977 123 456'}
                   </div>
                 </div>
@@ -3084,7 +3290,7 @@ function ProfileSection() {
         </Card>
 
         {/* Bottom Card: Loyalty Status */}
-        <Card className="lg:col-span-12 rounded-3xl border border-border shadow-sm bg-card overflow-hidden p-8">
+        <Card className="lg:col-span-12 rounded-[32px] border-none shadow-2xl bg-white dark:bg-stone-900 overflow-hidden p-8">
           <div className="flex items-center gap-2 mb-8">
             <Gift className="w-5 h-5 text-emerald-500" />
             <h2 className="text-lg font-bold text-foreground">Loyalty Status</h2>
@@ -3105,9 +3311,9 @@ function ProfileSection() {
                 </p>
               </div>
               
-              <div className="w-full h-2.5 bg-stone-100 rounded-full overflow-hidden">
+              <div className="w-full h-1.5 bg-stone-100 dark:bg-stone-800 rounded-full overflow-hidden">
                 <div 
-                  className="h-full bg-emerald-600 rounded-full transition-all duration-1000 ease-out shadow-[0_0_8px_rgba(16,185,129,0.3)]" 
+                  className="h-full bg-[#4CAF50] rounded-full transition-all duration-1000 ease-out" 
                   style={{ 
                     width: loyaltyInfo.nextTier 
                       ? `${Math.max(5, ((loyaltyInfo.currentPoints - loyaltyInfo.currentTier.minPoints) / (loyaltyInfo.nextTier.minPoints - loyaltyInfo.currentTier.minPoints)) * 100)}%` 
@@ -3125,7 +3331,7 @@ function ProfileSection() {
 
 // Wishlist Section Component
 function WishlistSection() {
-  const { wishlist, removeFromWishlist, clearWishlist, setPage, getCurrencySymbol, convertFromUSD, currency: activeCurrency } = useVistaStore();
+  const { wishlist, removeFromWishlist, clearWishlist, setPage, setSelectedDestination, getCurrencySymbol, convertFromUSD, currency: activeCurrency } = useVistaStore();
   const [mounted, setMounted] = useState(false);
   
   useEffect(() => {
@@ -3587,7 +3793,7 @@ function AnalyticsSection() {
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 md:gap-6 mb-8">
         {kpis.map((kpi, i) => (
-          <div key={i} className="bg-card rounded-2xl md:rounded-[20px] shadow-sm ring-1 ring-border p-5 md:p-6 flex flex-col gap-4 hover:shadow-md transition-shadow">
+          <div key={i} className="bg-card rounded-[32px] md:rounded-[20px] shadow-sm ring-1 ring-border p-5 md:p-6 flex flex-col gap-4 hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between">
               <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", kpi.iconBg)}>
                 <kpi.icon className={cn("w-5 h-5", kpi.iconColor)} />
@@ -3610,7 +3816,7 @@ function AnalyticsSection() {
       {/* Main Charts Row */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-8">
         {/* Revenue Trend */}
-        <div className="bg-card rounded-2xl md:rounded-[24px] shadow-sm ring-1 ring-border p-6 md:p-8 border border-border">
+        <div className="bg-white dark:bg-stone-900 rounded-[32px] shadow-2xl border-none p-8 overflow-hidden">
           <h3 className="text-lg font-bold text-foreground mb-6">Revenue Trend</h3>
           <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -3653,7 +3859,7 @@ function AnalyticsSection() {
         </div>
 
         {/* Booking Status Distribution */}
-        <div className="bg-card rounded-2xl md:rounded-[24px] shadow-sm ring-1 ring-border p-6 md:p-8 border border-border">
+        <div className="bg-card rounded-[32px] md:rounded-[24px] shadow-sm ring-1 ring-border p-6 md:p-8 border border-border">
           <h3 className="text-lg font-bold text-foreground mb-6">Booking Status Distribution</h3>
           <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -3689,7 +3895,7 @@ function AnalyticsSection() {
       {/* Bottom Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Top Destinations */}
-        <div className="bg-card rounded-2xl md:rounded-[24px] shadow-sm ring-1 ring-border p-6 md:p-8 border border-border">
+        <div className="bg-card rounded-[32px] md:rounded-[24px] shadow-sm ring-1 ring-border p-6 md:p-8 border border-border">
           <h3 className="text-lg font-bold text-foreground mb-6">Top Destinations</h3>
           <div className="space-y-6">
             {topDestinations.map((dest, i) => (
@@ -3710,7 +3916,7 @@ function AnalyticsSection() {
         </div>
 
         {/* Customer Demographics */}
-        <div className="bg-card rounded-2xl md:rounded-[24px] shadow-sm ring-1 ring-border p-6 md:p-8 flex flex-col border border-border">
+        <div className="bg-card rounded-[32px] md:rounded-[24px] shadow-sm ring-1 ring-border p-6 md:p-8 flex flex-col border border-border">
           <h3 className="text-lg font-bold text-foreground mb-2">Customer Demographics</h3>
           <div className="flex-1 h-[240px] w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -3743,7 +3949,7 @@ function AnalyticsSection() {
         </div>
 
         {/* Recent Activity */}
-        <div className="bg-card rounded-2xl md:rounded-[24px] shadow-sm ring-1 ring-border p-6 md:p-8 border border-border">
+        <div className="bg-card rounded-[32px] md:rounded-[24px] shadow-sm ring-1 ring-border p-6 md:p-8 border border-border">
           <h3 className="text-lg font-bold text-foreground mb-6">Recent Activity</h3>
           <div className="space-y-6">
             {recentActivity.map((act, i) => (
@@ -3789,7 +3995,7 @@ function MessagesSection() {
         {/* Messages List */}
         <div className="w-80 flex flex-col gap-4 overflow-y-auto pr-2 custom-scrollbar">
           {contactMessages.length === 0 ? (
-            <div className="text-center py-10 bg-card rounded-3xl border border-border/50 text-gray-400 text-sm">
+            <div className="text-center py-10 bg-white dark:bg-stone-900 rounded-[32px] shadow-lg border-none text-gray-400 text-sm">
               No messages yet
             </div>
           ) : contactMessages.map((m) => (
@@ -3797,15 +4003,15 @@ function MessagesSection() {
               key={m.id}
               onClick={() => setSelectedMsg(m)}
               className={cn(
-                "p-5 rounded-3xl text-left transition-all border flex flex-col gap-3 group",
+                "p-5 rounded-[32px] text-left transition-all border-none flex flex-col gap-3 group",
                 selectedMsg?.id === m.id
-                  ? "bg-stone-900 border-stone-900 text-white shadow-xl shadow-stone-100"
-                  : "bg-card border-border text-foreground hover:border-accent hover:shadow-sm"
+                  ? "bg-stone-900 text-white shadow-2xl"
+                  : "bg-white dark:bg-stone-900 text-foreground hover:shadow-xl"
               )}
             >
               <div className="flex items-center justify-between gap-3">
                 <div className={cn(
-                  "w-10 h-10 rounded-2xl flex items-center justify-center transition-colors",
+                  "w-10 h-10 rounded-[32px] flex items-center justify-center transition-colors",
                   selectedMsg?.id === m.id ? "bg-card/10" : "bg-blue-50 text-blue-600 group-hover:bg-blue-100"
                 )}>
                   <Mail className="w-5 h-5" />
@@ -3833,7 +4039,7 @@ function MessagesSection() {
         </div>
 
         {/* Message Content */}
-        <div className="flex-1 bg-card rounded-[32px] border border-border shadow-sm flex flex-col overflow-hidden">
+        <div className="flex-1 bg-white dark:bg-stone-900 rounded-[32px] border-none shadow-2xl flex flex-col overflow-hidden">
           {!selectedMsg ? (
             <div className="flex-1 flex flex-col items-center justify-center text-center p-12">
               <div className="w-20 h-20 bg-muted/50 rounded-full flex items-center justify-center mb-6">
@@ -3844,10 +4050,10 @@ function MessagesSection() {
             </div>
           ) : (
             <div className="flex-1 flex flex-col">
-              <div className="p-8 md:p-10 border-b border-border bg-card">
+              <div className="p-8 md:p-10 border-none bg-stone-50/50 dark:bg-stone-800/20">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                   <div className="flex items-center gap-5">
-                    <div className="w-14 h-14 rounded-2xl bg-muted/50 flex items-center justify-center text-muted-foreground font-bold text-xl">
+                    <div className="w-14 h-14 rounded-[32px] bg-muted/50 flex items-center justify-center text-muted-foreground font-bold text-xl">
                       {selectedMsg.firstName[0]}{selectedMsg.lastName[0]}
                     </div>
                     <div>
@@ -3868,7 +4074,7 @@ function MessagesSection() {
               <div className="flex-1 p-8 md:p-10 overflow-y-auto custom-scrollbar bg-background/50">
                 <div className="max-w-3xl">
                   <p className="text-gray-400 text-xs font-black uppercase tracking-widest mb-6">Message Content</p>
-                  <div className="bg-card p-8 rounded-[32px] ring-1 ring-border shadow-sm text-foreground leading-relaxed text-lg whitespace-pre-wrap">
+                  <div className="bg-stone-50 dark:bg-stone-800 p-8 rounded-[32px] border-none shadow-inner text-foreground leading-relaxed text-lg whitespace-pre-wrap">
                     {selectedMsg.message}
                   </div>
                 </div>
@@ -4032,7 +4238,7 @@ function CustomersSection() {
             className="w-full sm:w-64"
           />
           <button
-            className="flex items-center justify-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-2xl text-sm font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 active:scale-95 whitespace-nowrap"
+            className="flex items-center justify-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-[32px] text-sm font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 active:scale-95 whitespace-nowrap"
             onClick={handleAddClick}
           >
             <Plus className="w-4 h-4" />
@@ -4170,11 +4376,11 @@ function CustomersSection() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-muted/30 p-6 rounded-3xl">
+                  <div className="bg-muted/30 p-6 rounded-[32px]">
                     <p className="text-xs font-black uppercase tracking-widest text-gray-400 mb-1">Bookings</p>
                     <p className="text-2xl font-bold text-foreground">{selectedCustomer.bookingsCount}</p>
                   </div>
-                  <div className="bg-muted/30 p-6 rounded-3xl">
+                  <div className="bg-muted/30 p-6 rounded-[32px]">
                     <p className="text-xs font-black uppercase tracking-widest text-gray-400 mb-1">Total Spent</p>
                     <p className="text-2xl font-bold text-emerald-600">${selectedCustomer.totalSpent.toLocaleString()}</p>
                   </div>
@@ -4182,7 +4388,7 @@ function CustomersSection() {
 
                 <div className="flex items-center justify-between pt-4">
                   <button
-                    className="px-6 py-3 bg-red-50 text-red-600 rounded-2xl text-sm font-bold hover:bg-red-100 transition-all flex items-center gap-2"
+                    className="px-6 py-3 bg-red-50 text-red-600 rounded-[32px] text-sm font-bold hover:bg-red-100 transition-all flex items-center gap-2"
                     onClick={(e) => handleDeleteClick(selectedCustomer.id, e)}
                   >
                     <Trash2 className="w-4 h-4" />
@@ -4191,7 +4397,7 @@ function CustomersSection() {
                   <div className="flex gap-3">
                     {!selectedCustomer.isVerified && (
                       <button
-                        className="px-6 py-3 bg-blue-50 text-blue-600 rounded-2xl text-sm font-bold hover:bg-blue-100 transition-all flex items-center gap-2"
+                        className="px-6 py-3 bg-blue-50 text-blue-600 rounded-[32px] text-sm font-bold hover:bg-blue-100 transition-all flex items-center gap-2"
                         onClick={async () => {
                            try {
                              const res = await fetch(`/api/users/${selectedCustomer.id}`, {
@@ -4216,13 +4422,13 @@ function CustomersSection() {
                       </button>
                     )}
                     <button
-                      className="px-6 py-3 bg-stone-100 text-stone-600 rounded-2xl text-sm font-bold hover:bg-stone-200 transition-all"
+                      className="px-6 py-3 bg-stone-100 text-stone-600 rounded-[32px] text-sm font-bold hover:bg-stone-200 transition-all"
                       onClick={() => setIsModalOpen(false)}
                     >
                       Close
                     </button>
                     <button
-                      className="px-8 py-3 bg-emerald-600 text-white rounded-2xl text-sm font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100"
+                      className="px-8 py-3 bg-emerald-600 text-white rounded-[32px] text-sm font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100"
                       onClick={() => handleEditClick(selectedCustomer)}
                     >
                       Edit Profile
@@ -4287,7 +4493,7 @@ function CustomersSection() {
                   />
                 </div>
 
-                <div className="flex items-center gap-3 p-4 bg-muted/30 rounded-2xl">
+                <div className="flex items-center gap-3 p-4 bg-muted/30 rounded-[32px]">
                   <Checkbox
                     id="isActive"
                     checked={formData.isActive}
@@ -4301,14 +4507,14 @@ function CustomersSection() {
                 <div className="flex items-center justify-end gap-3 pt-6">
                   <button
                     type="button"
-                    className="px-6 py-3 bg-stone-100 text-stone-600 rounded-2xl text-sm font-bold hover:bg-stone-200 transition-all"
+                    className="px-6 py-3 bg-stone-100 text-stone-600 rounded-[32px] text-sm font-bold hover:bg-stone-200 transition-all"
                     onClick={() => setIsModalOpen(false)}
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-10 py-3 bg-emerald-600 text-white rounded-2xl text-sm font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 active:scale-95"
+                    className="px-10 py-3 bg-emerald-600 text-white rounded-[32px] text-sm font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 active:scale-95"
                   >
                     {modalType === "add" ? "Create Customer" : "Save Changes"}
                   </button>
@@ -4487,10 +4693,10 @@ function SupportTicketsSection() {
             key={tab.value}
             onClick={() => setStatusFilter(tab.value as any)}
             className={cn(
-              "px-5 py-2.5 rounded-2xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap",
+              "px-5 py-2.5 rounded-[32px] text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap",
               statusFilter === tab.value
                 ? "bg-stone-900 text-white shadow-lg"
-                : "bg-card text-gray-500 hover:bg-stone-100 border border-border/50"
+                : "bg-white dark:bg-stone-900 text-gray-500 hover:bg-stone-100 border-none shadow-md hover:shadow-lg"
             )}
           >
             <tab.icon className="w-3.5 h-3.5" />
@@ -4503,11 +4709,11 @@ function SupportTicketsSection() {
         {/* Ticket List (Left) */}
         <div className="w-80 flex flex-col gap-4 overflow-y-auto pr-2 custom-scrollbar">
           {loading ? (
-            <div className="flex items-center justify-center py-20 bg-card rounded-3xl border border-border">
+            <div className="flex items-center justify-center py-20 bg-card rounded-[32px] border border-border">
               <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
             </div>
           ) : tickets.filter(t => statusFilter === "ALL" || t.status === statusFilter).length === 0 ? (
-            <div className="text-center py-10 bg-card rounded-3xl border border-border/50 text-gray-400 text-sm">
+            <div className="text-center py-10 bg-white dark:bg-stone-900 rounded-[32px] shadow-lg border-none text-gray-400 text-sm">
               No {statusFilter.toLowerCase().replace('_', ' ')} tickets found
             </div>
           ) : tickets
@@ -4517,15 +4723,15 @@ function SupportTicketsSection() {
               key={t.id}
               onClick={() => setSelectedTicketId(t.id)}
               className={cn(
-                "p-5 rounded-3xl text-left transition-all border flex flex-col gap-3 group relative overflow-hidden",
+                "p-5 rounded-[32px] text-left transition-all border-none flex flex-col gap-3 group relative overflow-hidden",
                 selectedTicketId === t.id
-                  ? "bg-stone-900 border-stone-800 text-white shadow-xl shadow-stone-900/20"
-                  : "bg-card border-border text-foreground hover:border-accent hover:shadow-sm"
+                  ? "bg-stone-900 text-white shadow-2xl"
+                  : "bg-white dark:bg-stone-900 text-foreground hover:shadow-xl"
               )}
             >
               <div className="flex items-center justify-between gap-3">
                 <div className={cn(
-                  "w-10 h-10 rounded-2xl flex items-center justify-center transition-colors",
+                  "w-10 h-10 rounded-[32px] flex items-center justify-center transition-colors",
                   selectedTicketId === t.id ? "bg-card/10" : "bg-emerald-50 text-emerald-600 group-hover:bg-emerald-100"
                 )}>
                   <MessageSquare className="w-5 h-5" />
@@ -4561,7 +4767,7 @@ function SupportTicketsSection() {
         </div>
 
         {/* Chat Window (Right) */}
-        <div className="flex-1 bg-card rounded-[32px] border border-border shadow-sm flex flex-col overflow-hidden">
+        <div className="flex-1 bg-white dark:bg-stone-900 rounded-[32px] border-none shadow-2xl flex flex-col overflow-hidden">
           {!selectedTicketId ? (
             <div className="flex-1 flex flex-col items-center justify-center text-center p-12">
               <div className="w-20 h-20 bg-muted/50 rounded-full flex items-center justify-center mb-6">
@@ -4577,11 +4783,11 @@ function SupportTicketsSection() {
           ) : ticketDetails ? (
             <>
               {/* Chat Header */}
-              <div className="p-6 md:p-8 border-b border-gray-50 flex items-center justify-between bg-card z-10">
+              <div className="p-6 md:p-8 border-none bg-stone-50/50 dark:bg-stone-800/20 flex items-center justify-between z-10">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-muted/30 flex items-center justify-center">
+                  <div className="w-12 h-12 rounded-[32px] bg-muted/30 flex items-center justify-center">
                     {ticketDetails.user.avatar ? (
-                      <img src={ticketDetails.user.avatar} className="w-full h-full rounded-2xl object-cover" />
+                      <img src={ticketDetails.user.avatar} className="w-full h-full rounded-[32px] object-cover" />
                     ) : (
                       <User className="w-6 h-6 text-stone-200" />
                     )}
@@ -4626,7 +4832,7 @@ function SupportTicketsSection() {
                       )}
                     >
                       <div className={cn(
-                        "p-4 md:p-5 rounded-3xl text-sm leading-relaxed whitespace-pre-wrap font-medium shadow-sm transition-all",
+                        "p-4 md:p-5 rounded-[32px] text-sm leading-relaxed whitespace-pre-wrap font-medium shadow-sm transition-all",
                         isStaff
                           ? "bg-stone-900 text-white shadow-stone-200"
                           : "bg-card text-foreground border border-border/50 shadow-gray-100"
@@ -4652,7 +4858,7 @@ function SupportTicketsSection() {
               <div className="p-4 md:p-6 bg-card border-t border-gray-50 z-10">
                 <form
                   onSubmit={handleSendReply}
-                  className="flex gap-3 bg-muted/50 p-2 rounded-2xl border border-border/50 focus-within:ring-2 focus-within:ring-emerald-500/20 focus-within:border-emerald-500 transition-all"
+                  className="flex gap-3 bg-muted/50 p-2 rounded-[32px] border border-border/50 focus-within:ring-2 focus-within:ring-emerald-500/20 focus-within:border-emerald-500 transition-all"
                 >
                   <input
                     type="text"
@@ -4768,16 +4974,16 @@ function BookingsSection({ type, userId: explicitUserId }: { type?: "FLIGHT" | "
             placeholder="Search booking ID..." 
             value={searchQuery}
             onChange={(e) => handleSearchChange(e.target.value)}
-            className="w-full sm:w-64"
+            className="w-full sm:w-64 bg-stone-50 dark:bg-stone-800 border-none rounded-xl"
           />
         </div>
       </div>
 
-      <div className="bg-card rounded-[32px] shadow-sm ring-1 ring-border overflow-hidden border border-border">
+      <div className="bg-white dark:bg-stone-900 rounded-[32px] shadow-2xl border-none overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-border bg-muted/20">
+              <tr className="border-none bg-stone-50 dark:bg-stone-800/50">
                 <th className="px-8 py-5 text-[11px] font-black uppercase tracking-widest text-gray-400">Booking Ref</th>
                 <th className="px-8 py-5 text-[11px] font-black uppercase tracking-widest text-gray-400">Type</th>
                 <th className="px-8 py-5 text-[11px] font-black uppercase tracking-widest text-gray-400">Details</th>
@@ -5050,7 +5256,7 @@ function DestinationsSection() {
         </div>
         <button
           onClick={() => handleOpenModal()}
-          className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-2xl text-sm font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100"
+          className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-[32px] text-sm font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100"
         >
           <Plus className="w-4 h-4" />
           Add Package
@@ -5063,11 +5269,11 @@ function DestinationsSection() {
             <Loader2 className="w-10 h-10 animate-spin text-emerald-600" />
           </div>
         ) : destinations.length === 0 ? (
-          <div className="col-span-full py-20 text-center bg-card rounded-[32px] border border-border/50 text-gray-400">
+          <div className="col-span-full py-20 text-center bg-white dark:bg-stone-900 rounded-[32px] shadow-lg border-none text-gray-400">
             No destinations in inventory.
           </div>
         ) : destinations.map((dest) => (
-          <div key={dest.id} className="bg-card rounded-[32px] border-none shadow-xl overflow-hidden group hover:shadow-2xl transition-all duration-300">
+          <div key={dest.id} className="bg-white dark:bg-stone-900 rounded-[32px] border-none shadow-xl overflow-hidden group hover:shadow-2xl hover:scale-[1.02] transition-all duration-300">
             <div className="relative h-56 overflow-hidden">
               <img src={dest.image} alt={dest.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
               <div className="absolute top-4 right-4 flex gap-2">
@@ -5115,7 +5321,7 @@ function DestinationsSection() {
                 </div>
               </div>
               <p className="text-gray-500 text-sm line-clamp-2 mb-6 leading-relaxed">{dest.description}</p>
-              <div className="flex items-center justify-between text-[10px] text-stone-400 font-black uppercase tracking-widest border-t border-gray-50 pt-6">
+              <div className="flex items-center justify-between text-[10px] text-stone-400 font-black uppercase tracking-widest border-t border-stone-50 dark:border-stone-800 pt-6">
                 <div className="flex items-center gap-2">
                   <Clock className="w-3.5 h-3.5 text-emerald-500" />
                   <span>{dest.duration}</span>
@@ -5151,7 +5357,7 @@ function DestinationsSection() {
                     value={formData.title} 
                     onChange={e => setFormData({...formData, title: e.target.value})} 
                     required 
-                    className="rounded-xl"
+                    className="rounded-xl bg-stone-50 dark:bg-stone-800 border-none h-12"
                   />
                 </div>
                 <div className="space-y-2">
@@ -5161,7 +5367,7 @@ function DestinationsSection() {
                     value={formData.location} 
                     onChange={e => setFormData({...formData, location: e.target.value})} 
                     required 
-                    className="rounded-xl"
+                    className="rounded-xl bg-stone-50 dark:bg-stone-800 border-none h-12"
                   />
                 </div>
               </div>
@@ -5175,7 +5381,7 @@ function DestinationsSection() {
                     value={formData.price} 
                     onChange={e => setFormData({...formData, price: parseInt(e.target.value) || 0})} 
                     required 
-                    className="rounded-xl"
+                    className="rounded-xl bg-stone-50 dark:bg-stone-800 border-none h-12 shadow-inner"
                   />
                 </div>
                 <div className="space-y-2">
@@ -5186,7 +5392,7 @@ function DestinationsSection() {
                     value={formData.childPrice} 
                     onChange={e => setFormData({...formData, childPrice: parseInt(e.target.value) || 0})} 
                     required 
-                    className="rounded-xl"
+                    className="rounded-xl bg-stone-50 dark:bg-stone-800 border-none h-12 shadow-inner"
                   />
                 </div>
                 <div className="space-y-2">
@@ -5197,7 +5403,7 @@ function DestinationsSection() {
                     value={formData.maxGroupSize} 
                     onChange={e => setFormData({...formData, maxGroupSize: parseInt(e.target.value) || 1})} 
                     required 
-                    className="rounded-xl"
+                    className="rounded-xl bg-stone-50 dark:bg-stone-800 border-none h-12 shadow-inner"
                   />
                 </div>
                 <div className="space-y-2">
@@ -5428,7 +5634,7 @@ function DestinationsSection() {
                 </div>
                 
                 {formData.image && (
-                  <div className="relative h-40 w-full rounded-2xl overflow-hidden group border border-border/50">
+                  <div className="relative h-40 w-full rounded-[32px] overflow-hidden group border border-border/50">
                     <img src={formData.image} className="w-full h-full object-cover" alt="Preview" />
                     <button 
                       type="button"
@@ -5578,7 +5784,7 @@ function ReviewsSection() {
         ].map((s, i) => (
           <div key={i} className="bg-card p-6 rounded-[24px] border border-border/50 shadow-sm">
             <div className="flex justify-between items-start mb-4">
-              <div className={`p-3 rounded-2xl bg-muted/30 ${s.color}`}>
+              <div className={`p-3 rounded-[32px] bg-muted/30 ${s.color}`}>
                 <s.icon className="w-5 h-5" />
               </div>
             </div>
@@ -5598,7 +5804,7 @@ function ReviewsSection() {
         ))}
       </div>
 
-      <div className="bg-card rounded-[32px] border border-border/50 shadow-sm overflow-hidden">
+      <div className="bg-white dark:bg-stone-900 rounded-[32px] shadow-2xl border-none overflow-hidden">
         <div className="p-6 md:p-8 border-b border-border/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <h3 className="font-bold text-foreground text-lg">All Reviews</h3>
           <div className="flex items-center gap-2 p-1 bg-muted/30 rounded-xl w-fit">
@@ -5798,7 +6004,7 @@ function CalendarSection() {
 
       <div className="flex flex-col lg:flex-row gap-6 items-start mb-6">
         {/* Calendar Card */}
-        <div className="flex-1 bg-card rounded-2xl md:rounded-[24px] shadow-sm ring-1 ring-gray-100 w-full overflow-hidden">
+        <div className="flex-1 bg-card rounded-[32px] md:rounded-[24px] shadow-sm ring-1 ring-gray-100 w-full overflow-hidden">
           <div className="p-6 md:p-8 flex flex-col h-full">
             <div className="flex items-center justify-between mb-8">
               <h3 className="text-lg md:text-xl font-bold text-foreground">
@@ -5866,7 +6072,7 @@ function CalendarSection() {
         </div>
 
         {/* Day's Bookings Panel */}
-        <div className="w-full lg:w-[380px] shrink-0 bg-card rounded-2xl md:rounded-[24px] shadow-sm ring-1 ring-gray-100 overflow-hidden">
+        <div className="w-full lg:w-[380px] shrink-0 bg-card rounded-[32px] md:rounded-[24px] shadow-sm ring-1 ring-gray-100 overflow-hidden">
           <div className="p-6 md:p-8">
             <h3 className="text-lg md:text-xl font-bold text-foreground">Day&apos;s Bookings</h3>
             <p className="text-sm text-gray-500 mt-1 mb-6">
@@ -5875,7 +6081,7 @@ function CalendarSection() {
             </p>
             <div className="space-y-4 max-h-[500px] overflow-y-auto pr-1">
               {selectedDayBookings.length > 0 ? selectedDayBookings.map((b, i) => (
-                <div key={i} className="bg-[#fafaf9] rounded-2xl p-4 md:p-5 border border-transparent hover:border-emerald-100 transition-colors">
+                <div key={i} className="bg-[#fafaf9] rounded-[32px] p-4 md:p-5 border border-transparent hover:border-emerald-100 transition-colors">
                   <div className="flex justify-between items-start mb-3">
                     <span className="text-[13px] font-semibold text-emerald-600">{b.time}</span>
                     <span className={cn(
@@ -5889,7 +6095,7 @@ function CalendarSection() {
                   <p className="text-xs font-medium text-gray-500 mt-1.5">{b.detail}</p>
                 </div>
               )) : (
-                <div className="text-center py-10 bg-muted/30 rounded-xl border border-dashed border-gray-200">
+                <div className="text-center py-10 bg-muted/50 rounded-xl border-2 border-dashed border-emerald-100">
                   <Calendar className="w-8 h-8 text-gray-300 mx-auto mb-2" />
                   <p className="text-sm text-gray-500 font-medium">No bookings on this day.</p>
                 </div>
@@ -5900,7 +6106,7 @@ function CalendarSection() {
       </div>
 
       {/* Weekly Overview Panel */}
-      <div className="w-full bg-card rounded-2xl md:rounded-[24px] shadow-sm ring-1 ring-gray-100 overflow-hidden">
+      <div className="w-full bg-card rounded-[32px] md:rounded-[24px] shadow-sm ring-1 ring-gray-100 overflow-hidden">
         <div className="p-6 md:p-8">
           <h3 className="text-lg md:text-xl font-bold text-foreground mb-6">Weekly Overview</h3>
           <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-3 md:gap-4">
@@ -5908,7 +6114,7 @@ function CalendarSection() {
               <div
                 key={i}
                 className={cn(
-                  "bg-[#fafaf9] rounded-2xl p-4 flex flex-col items-center justify-between border transition-colors aspect-[4/5] min-w-[100px]",
+                  "bg-[#fafaf9] rounded-[32px] p-4 flex flex-col items-center justify-between border transition-colors aspect-[4/5] min-w-[100px]",
                   stat.dateRef === selectedDate ? "border-emerald-300 ring-1 ring-emerald-50" : "border-transparent hover:border-emerald-100"
                 )}
               >
@@ -5989,7 +6195,7 @@ function LegalSection() {
       </div>
 
       {/* Tabs */}
-      <div className="inline-flex p-1 bg-gray-100 rounded-2xl mb-10 mx-1">
+      <div className="inline-flex p-1 bg-gray-100 rounded-[32px] mb-10 mx-1">
         <button
           onClick={() => setActiveTab('privacy')}
           className={cn(
@@ -6021,7 +6227,7 @@ function LegalSection() {
           </h3>
           <button
             onClick={addSection}
-            className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-2xl text-sm font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 active:scale-95"
+            className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-[32px] text-sm font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 active:scale-95"
           >
             <Plus className="w-4 h-4" />
             Add Section
@@ -6069,7 +6275,7 @@ function LegalSection() {
 
         <div className="mt-8 flex justify-end">
           <button
-            className="px-8 py-3.5 bg-emerald-600 text-white rounded-2xl text-sm font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 active:scale-95"
+            className="px-8 py-3.5 bg-emerald-600 text-white rounded-[32px] text-sm font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 active:scale-95"
             onClick={handleSave}
           >
             Save {activeTab === 'privacy' ? 'Privacy Policy' : 'Terms of Service'}
@@ -6155,7 +6361,7 @@ function VouchersSection() {
         </div>
         <Button 
           onClick={() => setIsModalOpen(true)}
-          className="bg-stone-900 text-white hover:bg-stone-800 rounded-2xl px-6 py-3 shadow-xl transition-all active:scale-95 flex items-center gap-2"
+          className="bg-stone-900 text-white hover:bg-stone-800 rounded-[32px] px-6 py-3 shadow-xl transition-all active:scale-95 flex items-center gap-2"
         >
           <Plus className="w-4 h-4" />
           Generate New Voucher
@@ -6179,7 +6385,7 @@ function VouchersSection() {
             <CardContent className="p-8">
               <div className="flex items-center gap-4 mb-6">
                 <div className={cn(
-                  "w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg",
+                  "w-14 h-14 rounded-[32px] flex items-center justify-center shadow-lg",
                   voucher.applicableTo === "flights" ? "bg-emerald-50 text-emerald-600" : 
                   voucher.applicableTo === "tours" ? "bg-purple-50 text-purple-600" : "bg-amber-50 text-amber-600"
                 )}>
@@ -6191,7 +6397,7 @@ function VouchersSection() {
                 </div>
               </div>
 
-              <div className="bg-muted/30 rounded-2xl p-4 border border-border/50 mb-6">
+              <div className="bg-muted/30 rounded-[32px] p-4 border border-border/50 mb-6">
                 <div className="flex items-center justify-between mb-4">
                   <code className="text-xl font-black text-emerald-600 font-mono tracking-tighter tracking-widest">
                     {voucher.code}
@@ -6261,7 +6467,7 @@ function VouchersSection() {
                     placeholder="e.g. SUMMER2024" 
                     value={formData.code} 
                     onChange={e => setFormData({...formData, code: e.target.value.toUpperCase()})}
-                    className="h-14 rounded-2xl border-border/50 bg-muted/30/50 font-black text-foreground uppercase"
+                    className="h-14 rounded-[32px] border-border/50 bg-muted/30/50 font-black text-foreground uppercase"
                     required 
                   />
                 </div>
@@ -6270,7 +6476,7 @@ function VouchersSection() {
                   <select 
                     value={formData.applicableTo}
                     onChange={e => setFormData({...formData, applicableTo: e.target.value as any})}
-                    className="w-full h-14 rounded-2xl border-border/50 bg-muted/30/50 px-4 font-bold text-foreground focus:ring-2 focus:ring-emerald-500 outline-none"
+                    className="w-full h-14 rounded-[32px] border-border/50 bg-muted/30/50 px-4 font-bold text-foreground focus:ring-2 focus:ring-emerald-500 outline-none"
                   >
                     <option value="all">All Services</option>
                     <option value="flights">Flights Only</option>
@@ -6285,7 +6491,7 @@ function VouchersSection() {
                   placeholder="e.g. Early Bird Summer Discount" 
                   value={formData.title} 
                   onChange={e => setFormData({...formData, title: e.target.value})}
-                  className="h-14 rounded-2xl border-border/50 bg-muted/30/50 font-bold text-foreground"
+                  className="h-14 rounded-[32px] border-border/50 bg-muted/30/50 font-bold text-foreground"
                   required 
                 />
               </div>
@@ -6296,7 +6502,7 @@ function VouchersSection() {
                   placeholder="Describe the offer and any restrictions..." 
                   value={formData.description}
                   onChange={e => setFormData({...formData, description: e.target.value})}
-                  className="w-full h-24 rounded-2xl border-border/50 bg-muted/30/50 px-4 py-3 font-medium text-foreground focus:ring-2 focus:ring-emerald-500 outline-none resize-none"
+                  className="w-full h-24 rounded-[32px] border-border/50 bg-muted/30/50 px-4 py-3 font-medium text-foreground focus:ring-2 focus:ring-emerald-500 outline-none resize-none"
                   required 
                 />
               </div>
@@ -6304,7 +6510,7 @@ function VouchersSection() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="space-y-2">
                    <Label className="text-xs font-black uppercase tracking-widest text-stone-500 ml-1">Discount Type</Label>
-                   <div className="flex bg-muted/30 p-1 rounded-2xl border border-border/50">
+                   <div className="flex bg-muted/30 p-1 rounded-[32px] border border-border/50">
                      <button
                        type="button"
                        onClick={() => setFormData({...formData, discountType: 'percentage'})}
@@ -6329,7 +6535,7 @@ function VouchersSection() {
                     type="number" 
                     value={formData.discountValue} 
                     onChange={e => setFormData({...formData, discountValue: parseInt(e.target.value) || 0})}
-                    className="h-14 rounded-2xl border-border/50 bg-muted/30/50 font-black text-foreground text-center text-xl"
+                    className="h-14 rounded-[32px] border-border/50 bg-muted/30/50 font-black text-foreground text-center text-xl"
                     required 
                   />
                 </div>
@@ -6342,7 +6548,7 @@ function VouchersSection() {
                     type="number" 
                     value={formData.minPurchase} 
                     onChange={e => setFormData({...formData, minPurchase: parseInt(e.target.value) || 0})}
-                    className="h-14 rounded-2xl border-border/50 bg-muted/30/50 font-black text-foreground"
+                    className="h-14 rounded-[32px] border-border/50 bg-muted/30/50 font-black text-foreground"
                     required 
                   />
                 </div>
@@ -6352,7 +6558,7 @@ function VouchersSection() {
                     placeholder="Empty for all users"
                     value={formData.applicableToUser} 
                     onChange={e => setFormData({...formData, applicableToUser: e.target.value})}
-                    className="h-14 rounded-2xl border-border/50 bg-muted/30/50 font-medium text-foreground"
+                    className="h-14 rounded-[32px] border-border/50 bg-muted/30/50 font-medium text-foreground"
                   />
                 </div>
               </div>
@@ -6494,8 +6700,8 @@ function AdminDashboard() {
   // Redirect if not authenticated
   if (!isAuthenticated) {
     return (
-      <section className="pt-20 min-h-screen flex items-center justify-center bg-muted/30">
-        <div className="text-center p-8">
+      <section className="pt-20 min-h-screen flex items-center justify-center bg-stone-50 dark:bg-stone-950">
+        <div className="text-center p-12 bg-white dark:bg-stone-900 rounded-[32px] shadow-2xl max-w-lg border-none">
           <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
             <Shield className="w-10 h-10 text-red-500" />
           </div>
@@ -6656,7 +6862,7 @@ function AdminDashboard() {
                     <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                     <Input
                       placeholder="Search..."
-                      className="pl-10 w-full sm:w-48 bg-card border-gray-200"
+                      className="pl-10 w-full sm:w-48 bg-stone-50 dark:bg-stone-800 border-none rounded-xl"
                     />
                   </div>
                 </div>
@@ -6667,9 +6873,10 @@ function AdminDashboard() {
                 {stats.map((stat, index) => (
                   <div
                     key={index}
+                    className="transition-all duration-300 hover:scale-[1.03]"
                   >
-                    <Card className="rounded-xl md:rounded-2xl shadow-lg hover:shadow-xl transition-all cursor-pointer border-0">
-                      <CardContent className="p-3 md:p-6">
+                    <Card className="rounded-24px md:rounded-[32px] shadow-xl border-none">
+                      <CardContent className="p-4 md:p-8">
                         <div className="flex justify-between items-start mb-2 md:mb-4">
                           <div>
                             <p className="text-xs md:text-sm text-gray-500 mb-0.5 md:mb-1">
@@ -6724,8 +6931,8 @@ function AdminDashboard() {
               </div>
 
               {/* Recent Bookings Table */}
-              <Card className="rounded-xl md:rounded-2xl shadow-lg border-0">
-                <CardHeader className="p-4 md:p-6 border-b border-border/50 flex justify-between items-center">
+              <Card className="rounded-[32px] shadow-2xl border-none overflow-hidden">
+                <CardHeader className="p-6 md:p-8 border-none flex justify-between items-center">
                   <h3 className="text-base md:text-lg font-bold text-foreground">
                     Recent Bookings
                   </h3>
@@ -6739,7 +6946,7 @@ function AdminDashboard() {
                 <CardContent className="p-0">
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[500px]">
-                      <thead className="bg-muted/30">
+                      <thead className="bg-stone-50 dark:bg-stone-800/50">
                         <tr>
                           <th className="px-4 md:px-6 py-3 md:py-4 text-left text-[10px] md:text-xs font-semibold text-gray-500 uppercase">
                             Booking ID
@@ -6761,31 +6968,31 @@ function AdminDashboard() {
                           </th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-gray-100">
+                      <tbody className="divide-none">
                         {recentBookings.map((booking, index) => (
                           <tr
                             key={index}
-                            className="hover:bg-muted/30 transition-colors"
+                            className="group hover:bg-stone-50 dark:hover:bg-stone-800/50 transition-all duration-300"
                           >
-                            <td className="px-4 md:px-6 py-3 md:py-4 text-xs md:text-sm font-medium text-foreground">
+                            <td className="px-6 py-4 text-xs md:text-sm font-medium text-foreground group-hover:pl-8 transition-all">
                               {booking.id}
                             </td>
-                            <td className="px-4 md:px-6 py-3 md:py-4 text-xs md:text-sm text-gray-600">
+                            <td className="px-6 py-4 text-xs md:text-sm text-gray-600">
                               {booking.customer}
                             </td>
-                            <td className="px-4 md:px-6 py-3 md:py-4 text-xs md:text-sm text-gray-600 hidden sm:table-cell">
+                            <td className="px-6 py-4 text-xs md:text-sm text-gray-600 hidden sm:table-cell">
                               {booking.type}
                             </td>
-                            <td className="px-4 md:px-6 py-3 md:py-4 text-xs md:text-sm text-gray-600 hidden md:table-cell">
+                            <td className="px-6 py-4 text-xs md:text-sm text-gray-600 hidden md:table-cell">
                               {booking.date}
                             </td>
-                            <td className="px-4 md:px-6 py-3 md:py-4 text-xs md:text-sm font-semibold text-foreground">
+                            <td className="px-6 py-4 text-xs md:text-sm font-semibold text-foreground">
                               {booking.amount}
                             </td>
-                            <td className="px-4 md:px-6 py-3 md:py-4">
+                            <td className="px-6 py-4">
                               <span
                                 className={cn(
-                                  "px-2 md:px-3 py-0.5 md:py-1 rounded-full text-[10px] md:text-xs font-semibold",
+                                  "px-3 py-1 rounded-full text-[10px] md:text-xs font-semibold",
                                   booking.status === "confirmed"
                                     ? "bg-emerald-100 text-emerald-700"
                                     : "bg-orange-100 text-orange-700"
@@ -6805,8 +7012,8 @@ function AdminDashboard() {
               {/* Voucher Panel & Loyalty Rewards */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 mt-6 md:mt-8">
                 {/* Active Vouchers Panel */}
-                <Card className="rounded-xl md:rounded-2xl shadow-lg border-0">
-                  <CardHeader className="p-4 md:p-6 border-b border-border/50 flex flex-row justify-between items-center">
+                <Card className="rounded-[32px] shadow-2xl border-none overflow-hidden">
+                  <CardHeader className="p-6 md:p-8 border-none flex flex-row justify-between items-center bg-amber-50/30 dark:bg-amber-900/10">
                     <div className="flex items-center gap-2">
                       <div className="w-8 h-8 md:w-10 md:h-10 bg-amber-100 rounded-lg flex items-center justify-center">
                         <Gift className="w-4 h-4 md:w-5 md:h-5 text-amber-600" />
@@ -6825,7 +7032,7 @@ function AdminDashboard() {
                         {activeVouchers.map((voucher) => (
                           <div
                             key={voucher.id}
-                            className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-3 md:p-4 border border-amber-100 hover:border-amber-200 transition-colors"
+                            className="bg-stone-50 dark:bg-stone-800/50 rounded-2xl p-4 md:p-5 border-none hover:shadow-lg transition-all"
                           >
                             <div className="flex justify-between items-start mb-2">
                               <div className="flex-1 min-w-0">
@@ -6879,8 +7086,8 @@ function AdminDashboard() {
                 </Card>
 
                 {/* Loyalty Rewards Panel */}
-                <Card className="rounded-xl md:rounded-2xl shadow-lg border-0">
-                  <CardHeader className="p-4 md:p-6 border-b border-border/50">
+                <Card className="rounded-[32px] shadow-2xl border-none overflow-hidden">
+                  <CardHeader className="p-6 md:p-8 border-none bg-purple-50/30 dark:bg-purple-900/10">
                     <div className="flex items-center gap-2">
                       <div className="w-8 h-8 md:w-10 md:h-10 bg-purple-100 rounded-lg flex items-center justify-center">
                         <Crown className="w-4 h-4 md:w-5 md:h-5 text-purple-600" />
@@ -6936,17 +7143,17 @@ function AdminDashboard() {
 
                     {/* Points Stats */}
                     <div className="grid grid-cols-3 gap-2 md:gap-3 mb-4">
-                      <div className="bg-muted/30 rounded-lg p-2 md:p-3 text-center">
-                        <p className="text-lg md:text-xl font-bold text-emerald-600">{loyaltyInfo.pointsPerDollar}x</p>
-                        <p className="text-[10px] md:text-xs text-gray-500">Points per $</p>
+                      <div className="bg-stone-50 dark:bg-stone-800 p-2 md:p-3 text-center rounded-xl">
+                        <p className="text-lg md:text-xl font-bold text-emerald-600 font-serif">{loyaltyInfo.pointsPerDollar}x</p>
+                        <p className="text-[10px] md:text-xs text-gray-500 font-bold uppercase tracking-widest">Points per $</p>
                       </div>
-                      <div className="bg-muted/30 rounded-lg p-2 md:p-3 text-center">
-                        <p className="text-lg md:text-xl font-bold text-blue-600">{loyaltyInfo.totalEarned.toLocaleString()}</p>
-                        <p className="text-[10px] md:text-xs text-gray-500">Total Earned</p>
+                      <div className="bg-stone-50 dark:bg-stone-800 p-2 md:p-3 text-center rounded-xl">
+                        <p className="text-lg md:text-xl font-bold text-blue-600 font-serif">{loyaltyInfo.totalEarned.toLocaleString()}</p>
+                        <p className="text-[10px] md:text-xs text-gray-500 font-bold uppercase tracking-widest">Total Earned</p>
                       </div>
-                      <div className="bg-muted/30 rounded-lg p-2 md:p-3 text-center">
-                        <p className="text-lg md:text-xl font-bold text-amber-600">{loyaltyInfo.totalRedeemed.toLocaleString()}</p>
-                        <p className="text-[10px] md:text-xs text-gray-500">Redeemed</p>
+                      <div className="bg-stone-50 dark:bg-stone-800 p-2 md:p-3 text-center rounded-xl">
+                        <p className="text-lg md:text-xl font-bold text-amber-600 font-serif">{loyaltyInfo.totalRedeemed.toLocaleString()}</p>
+                        <p className="text-[10px] md:text-xs text-gray-500 font-bold uppercase tracking-widest">Redeemed</p>
                       </div>
                     </div>
 
@@ -7084,7 +7291,7 @@ function CustomerSettingsSection() {
       )}
     >
       <span className={cn(
-        "inline-block h-4 w-4 transform rounded-full bg-card shadow transition-transform",
+        "inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform",
         checked ? "translate-x-5" : "translate-x-0.5"
       )} />
     </button>
@@ -7181,14 +7388,14 @@ function CustomerSettingsSection() {
       </div>
 
       {/* Preferences */}
-      <Card>
-        <CardHeader className="pb-3">
+      <Card className="rounded-[32px] shadow-2xl border-none overflow-hidden">
+        <CardHeader className="p-6 md:p-8 bg-emerald-50/30 dark:bg-emerald-900/10">
           <div className="flex items-center gap-2">
             <Settings className="w-5 h-5 text-emerald-600" />
-            <h2 className="font-bold text-foreground">Preferences</h2>
+            <h2 className="font-bold text-foreground text-xl">Preferences</h2>
           </div>
         </CardHeader>
-        <CardContent className="space-y-5">
+        <CardContent className="p-6 md:p-8 space-y-8">
           <div className="flex items-center justify-between">
             <div>
               <p className="font-medium text-foreground">Display Currency</p>
@@ -7200,7 +7407,7 @@ function CustomerSettingsSection() {
                 setCurrency(e.target.value as any); 
                 toast("Currency updated", { description: `Now showing prices in ${e.target.value}.` }) 
               }}
-              className="bg-muted/30 border rounded-lg px-3 py-2 text-sm font-medium"
+              className="bg-stone-50 dark:bg-stone-800 border-none rounded-xl px-4 py-2.5 text-sm font-bold text-foreground focus:ring-2 focus:ring-emerald-500 transition-all outline-none"
             >
               <option value="USD">🇺🇸 USD — US Dollar</option>
               <option value="EUR">🇪🇺 EUR — Euro</option>
@@ -7260,14 +7467,14 @@ function CustomerSettingsSection() {
       </Card>
 
       {/* Notifications */}
-      <Card>
-        <CardHeader className="pb-3">
+      <Card className="rounded-[32px] shadow-2xl border-none overflow-hidden">
+        <CardHeader className="p-6 md:p-8 bg-blue-50/30 dark:bg-blue-900/10">
           <div className="flex items-center gap-2">
             <Bell className="w-5 h-5 text-emerald-600" />
-            <h2 className="font-bold text-foreground">Notifications</h2>
+            <h2 className="font-bold text-foreground text-xl">Notifications</h2>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="p-6 md:p-8 space-y-6">
           {[
             { label: "Booking confirmations", desc: "Receive confirmations when you book.", checked: notifBooking, fn: () => setNotifBooking(!notifBooking) },
             { label: "Promotional offers", desc: "Deals, discounts and new destinations.", checked: notifPromo, fn: () => setNotifPromo(!notifPromo) },
@@ -7350,7 +7557,7 @@ function CustomerSettingsSection() {
       {/* Contact Support */}
       <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-100">
         <CardContent className="p-5 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-emerald-600 flex items-center justify-center shrink-0">
+          <div className="w-12 h-12 rounded-[32px] bg-emerald-600 flex items-center justify-center shrink-0">
             <Headset className="w-6 h-6 text-white" />
           </div>
           <div className="flex-1 min-w-0">
@@ -7731,7 +7938,7 @@ function UserDashboard() {
                   </CardContent>
                 </Card>
               </div>
-                <Card className="rounded-2xl border-border/50 shadow-sm mb-6">
+                <Card className="rounded-[32px] border-border/50 shadow-sm mb-6">
                   <CardHeader className="p-6 border-b border-stone-50">
                     <h3 className="text-lg font-bold text-foreground">Recent Bookings</h3>
                   </CardHeader>
@@ -7777,9 +7984,9 @@ function UserDashboard() {
               {/* Reward Sections */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
                 {/* Active Vouchers Card */}
-                <Card className="rounded-3xl border-border/50 shadow-sm overflow-hidden flex flex-col">
+                <Card className="rounded-[32px] border-border/50 shadow-sm overflow-hidden flex flex-col">
                   <CardHeader className="p-6 border-b border-stone-50 flex flex-row items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center">
+                    <div className="w-12 h-12 rounded-[32px] bg-amber-50 flex items-center justify-center">
                       <Gift className="w-6 h-6 text-amber-500" />
                     </div>
                     <div>
@@ -7790,7 +7997,7 @@ function UserDashboard() {
                   <CardContent className="p-6 space-y-4 flex-1">
                     {activeVouchers.map((voucher) => (
                       <div key={voucher.id} className="relative group">
-                        <div className="flex bg-amber-50/40 rounded-2xl border border-amber-100/50 overflow-hidden">
+                        <div className="flex bg-amber-50/40 rounded-[32px] border border-amber-100/50 overflow-hidden">
                           <div className="flex-1 p-5">
                             <div className="flex items-start justify-between mb-2">
                               <div>
@@ -7840,10 +8047,10 @@ function UserDashboard() {
                 </Card>
 
                 {/* Loyalty Rewards Card */}
-                <Card className="rounded-3xl border-border/50 shadow-sm overflow-hidden">
+                <Card className="rounded-[32px] border-border/50 shadow-sm overflow-hidden">
                   <CardHeader className="p-6 border-b border-stone-50 flex flex-row items-center justify-between">
                     <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center">
+                      <div className="w-12 h-12 rounded-[32px] bg-indigo-50 flex items-center justify-center">
                         <Crown className="w-6 h-6 text-indigo-500" />
                       </div>
                       <div>
@@ -7856,7 +8063,7 @@ function UserDashboard() {
                     {/* Tier Info */}
                     <div className="relative flex items-center justify-between">
                       <div className="flex items-center gap-5">
-                        <div className="w-16 h-16 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center text-3xl shadow-sm">
+                        <div className="w-16 h-16 rounded-[32px] bg-amber-50 border border-amber-100 flex items-center justify-center text-3xl shadow-sm">
                           {loyaltyInfo.currentTier.id === 'gold' ? '🥇' : loyaltyInfo.currentTier.id === 'silver' ? '🥈' : '🥉'}
                         </div>
                         <div>
@@ -7891,17 +8098,17 @@ function UserDashboard() {
 
                     {/* Stats Grid */}
                     <div className="grid grid-cols-3 gap-4">
-                      <div className="bg-muted/30/50 rounded-2xl p-4 border border-border/50/50 text-center">
+                      <div className="bg-muted/30/50 rounded-[32px] p-4 border border-border/50/50 text-center">
                         <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1.5">Multiplier</p>
                         <p className="text-lg font-black text-emerald-600">{loyaltyInfo.pointsPerDollar}x</p>
                         <p className="text-[8px] font-bold text-stone-400 mt-0.5">Points per $</p>
                       </div>
-                      <div className="bg-muted/30/50 rounded-2xl p-4 border border-border/50/50 text-center">
+                      <div className="bg-muted/30/50 rounded-[32px] p-4 border border-border/50/50 text-center">
                         <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1.5">Earnings</p>
                         <p className="text-lg font-black text-indigo-600">{loyaltyInfo.totalEarned.toLocaleString()}</p>
                         <p className="text-[8px] font-bold text-stone-400 mt-0.5">Total Earned</p>
                       </div>
-                      <div className="bg-muted/30/50 rounded-2xl p-4 border border-border/50/50 text-center">
+                      <div className="bg-muted/30/50 rounded-[32px] p-4 border border-border/50/50 text-center">
                         <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1.5">Rewards</p>
                         <p className="text-lg font-black text-foreground">{loyaltyInfo.totalRedeemed.toLocaleString()}</p>
                         <p className="text-[8px] font-bold text-stone-400 mt-0.5">Redeemed</p>
@@ -7945,7 +8152,7 @@ function UserDashboard() {
                   </Button>
                 )}
               </div>
-              <Card className="rounded-2xl border-border/50 shadow-sm overflow-hidden">
+              <Card className="rounded-[32px] border-border/50 shadow-sm overflow-hidden">
                 <CardContent className="p-0">
                   {loading ? (
                     <div className="p-8 text-center text-gray-500">
@@ -7970,7 +8177,7 @@ function UserDashboard() {
                         <div key={b.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-6 hover:bg-muted/30/50 transition-colors gap-4">
                           <div className="flex items-start gap-4">
                             <div className={cn(
-                              "w-12 h-12 rounded-2xl flex items-center justify-center text-xl shadow-sm bg-card border border-border/50",
+                              "w-12 h-12 rounded-[32px] flex items-center justify-center text-xl shadow-sm bg-card border border-border/50",
                               b.type === 'FLIGHT' ? "text-blue-600" : "text-emerald-600"
                             )}>
                               {b.type === 'FLIGHT' ? '✈️' : '🏞️'}
@@ -8041,7 +8248,7 @@ function UserDashboard() {
                 <h1 className="text-2xl font-bold text-foreground">Notifications</h1>
                 <p className="text-gray-500 text-sm">Stay updated with your travel bookings and offers.</p>
               </div>
-              <div className="bg-card rounded-3xl p-6 md:p-8 shadow-sm border border-border/50">
+              <div className="bg-card rounded-[32px] p-6 md:p-8 shadow-sm border border-border/50">
                 <NotificationSection />
               </div>
             </div>
@@ -8165,7 +8372,7 @@ function CustomerTicketsView({ initialSearch = "" }: { initialSearch?: string })
             placeholder="Search tickets by ID or passenger..." 
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-10 h-12 bg-card border-border/50 rounded-2xl shadow-sm focus:ring-emerald-500"
+            className="pl-10 h-12 bg-card border-border/50 rounded-[32px] shadow-sm focus:ring-emerald-500"
           />
         </div>
         <div className="flex gap-2">
@@ -8173,7 +8380,7 @@ function CustomerTicketsView({ initialSearch = "" }: { initialSearch?: string })
             variant="outline" 
             onClick={() => setShowFilters(!showFilters)}
             className={cn(
-              "h-12 rounded-2xl px-6 border-border/50 bg-card shadow-sm transition-all",
+              "h-12 rounded-[32px] px-6 border-border/50 bg-card shadow-sm transition-all",
               showFilters ? "bg-emerald-50 border-emerald-200 text-emerald-600" : "hover:bg-muted/30"
             )}
           >
@@ -8183,7 +8390,7 @@ function CustomerTicketsView({ initialSearch = "" }: { initialSearch?: string })
           <Button 
             variant="outline" 
             onClick={() => window.print()}
-            className="h-12 rounded-2xl px-6 border-border/50 bg-card shadow-sm hover:bg-muted/30"
+            className="h-12 rounded-[32px] px-6 border-border/50 bg-card shadow-sm hover:bg-muted/30"
           >
             <Printer className="w-4 h-4 mr-2" />
             Print All
@@ -8203,7 +8410,7 @@ function CustomerTicketsView({ initialSearch = "" }: { initialSearch?: string })
               key={tab.value}
               onClick={() => setFilter(tab.value as any)}
               className={cn(
-                "px-5 py-2.5 rounded-2xl text-xs font-bold transition-all flex items-center gap-2",
+                "px-5 py-2.5 rounded-[32px] text-xs font-bold transition-all flex items-center gap-2",
                 filter === tab.value
                   ? "bg-stone-900 text-white shadow-lg"
                   : "bg-card text-gray-500 hover:bg-stone-100 border border-border/50"
@@ -8250,7 +8457,7 @@ function CustomerTicketsView({ initialSearch = "" }: { initialSearch?: string })
               <CardContent className="p-8">
                 <div className="flex justify-between items-start mb-6">
                   <div className={cn(
-                    "w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm",
+                    "w-12 h-12 rounded-[32px] flex items-center justify-center shadow-sm",
                     ticket.type === 'flight' ? "bg-blue-50 text-blue-600" : "bg-emerald-50 text-emerald-600"
                   )}>
                     {ticket.type === 'flight' ? <Plane className="w-6 h-6" /> : <Calendar className="w-6 h-6" />}

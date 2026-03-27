@@ -386,7 +386,7 @@ export default function BookingModal({
             {steps.filter(s => s !== "receipt").map((s, i) => (
               <React.Fragment key={s}>
                 <div className={`flex items-center gap-1.5 flex-shrink-0 ${step === s ? "text-emerald-600" : steps.indexOf(step) > i ? "text-emerald-400" : "text-gray-300"}`}>
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border-2 transition-all ${step === s ? "border-emerald-600 bg-emerald-600 text-white" : steps.indexOf(step) > i ? "border-emerald-400 bg-emerald-50 text-emerald-600" : "border-gray-200 text-gray-400"}`}>
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-all ${step === s ? "bg-emerald-600 text-white" : steps.indexOf(step) > i ? "bg-emerald-50 text-emerald-600" : "bg-gray-100 text-gray-400"}`}>
                     {steps.indexOf(step) > i ? "✓" : i + 1}
                   </div>
                   <span className={`text-[10px] font-bold uppercase tracking-wider ${step === s ? "inline" : "hidden md:inline"}`}>{stepLabels[i]}</span>
@@ -427,7 +427,7 @@ export default function BookingModal({
                 </div>
 
                 {/* Guest counts */}
-                <div className="grid grid-cols-2 gap-4 p-4 bg-muted/30 rounded-xl border border-stone-200">
+                <div className="grid grid-cols-2 gap-4 p-4 bg-muted/50 rounded-xl">
                   <div className="space-y-2">
                     <Label className="text-xs text-gray-500 uppercase font-bold">Adults</Label>
                     <div className="flex items-center gap-3">
@@ -454,7 +454,7 @@ export default function BookingModal({
                       <select
                         value={idType}
                         onChange={(e) => setIdType(e.target.value)}
-                        className="w-full bg-background border rounded-md px-3 py-2 text-sm"
+                        className="w-full bg-stone-50 border-none rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500"
                       >
                         <option value="National ID">National ID</option>
                         <option value="Passport">Passport</option>
@@ -476,7 +476,7 @@ export default function BookingModal({
                       <select
                         value={flightClass}
                         onChange={(e) => setFlightClass(e.target.value)}
-                        className="w-full bg-background border rounded-md px-3 py-2 text-sm"
+                        className="w-full bg-stone-50 border-none rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500"
                       >
                         <option value="Economy">Economy</option>
                         <option value="Business">Business</option>
@@ -492,7 +492,7 @@ export default function BookingModal({
 
                 {/* Shared Pricing Preview for Step 1 */}
                 {(type === "FLIGHT" || step === "form") && (
-                  <div className="bg-stone-900 text-white p-5 rounded-2xl space-y-3">
+                  <div className="bg-stone-900 text-white p-5 rounded-[32px] space-y-3">
                     <div className="flex items-center justify-between border-b border-white/10 pb-2">
                       <span className="text-sm text-gray-400">Currency</span>
                       <select
@@ -555,7 +555,7 @@ export default function BookingModal({
                   <button
                     key={d}
                     onClick={() => setSelectedTourDate(d)}
-                    className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${selectedTourDate === d ? "border-emerald-600 bg-emerald-50" : "border-gray-100 hover:border-emerald-200"}`}
+                    className={`flex items-center justify-between p-4 rounded-[32px] border-2 transition-all ${selectedTourDate === d ? "border-emerald-600 bg-emerald-50" : "border-gray-100 hover:border-emerald-200"}`}
                   >
                     <div className="flex items-center gap-3 text-foreground font-bold text-sm">
                       <Calendar className="w-5 h-5 text-emerald-600" />
@@ -565,7 +565,7 @@ export default function BookingModal({
                   </button>
                 ))
               ) : (
-                <div className="p-8 text-center bg-muted/30 rounded-2xl text-gray-400 text-sm italic">
+                <div className="p-8 text-center bg-muted/30 rounded-[32px] text-gray-400 text-sm italic">
                   No specific dates set. Please contact support after booking for scheduling.
                 </div>
               )}
@@ -597,7 +597,7 @@ export default function BookingModal({
                 <button
                   key={opt.label}
                   onClick={() => setSelectedTransport(opt)}
-                  className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${selectedTransport?.label === opt.label ? "border-emerald-600 bg-emerald-50" : "border-gray-100 hover:border-emerald-200"}`}
+                  className={`flex items-center justify-between p-4 rounded-[32px] border-2 transition-all ${selectedTransport?.label === opt.label ? "border-emerald-600 bg-emerald-50" : "border-gray-100 hover:border-emerald-200"}`}
                 >
                   <div className="flex items-center gap-3">
                     <div className={`p-2 rounded-xl ${selectedTransport?.label === opt.label ? "bg-emerald-100 text-emerald-600" : "bg-gray-100 text-gray-400"}`}>
@@ -639,7 +639,7 @@ export default function BookingModal({
                 <button
                   key={opt.label}
                   onClick={() => setSelectedAccommodation(opt)}
-                  className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${selectedAccommodation?.label === opt.label ? "border-emerald-600 bg-emerald-50" : "border-gray-100 hover:border-emerald-200"}`}
+                  className={`flex items-center justify-between p-4 rounded-[32px] border-2 transition-all ${selectedAccommodation?.label === opt.label ? "border-emerald-600 bg-emerald-50" : "border-gray-100 hover:border-emerald-200"}`}
                 >
                   <div className="flex items-center gap-3">
                     <div className={`p-2 rounded-xl ${selectedAccommodation?.label === opt.label ? "bg-emerald-100 text-emerald-600" : "bg-gray-100 text-gray-400"}`}>
@@ -688,7 +688,7 @@ export default function BookingModal({
                       setSelectedAddOns([...selectedAddOns, opt]);
                     }
                   }}
-                  className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${selectedAddOns.find(a => a.label === opt.label) ? "border-emerald-600 bg-emerald-50" : "border-gray-100 hover:border-emerald-200"}`}
+                  className={`flex items-center justify-between p-4 rounded-[32px] border-2 transition-all ${selectedAddOns.find(a => a.label === opt.label) ? "border-emerald-600 bg-emerald-50" : "border-gray-100 hover:border-emerald-200"}`}
                 >
                   <div className="flex items-center gap-3">
                     <div className={`p-2 rounded-xl ${selectedAddOns.find(a => a.label === opt.label) ? "bg-emerald-100 text-emerald-600" : "bg-gray-100 text-gray-400"}`}>
@@ -732,7 +732,7 @@ export default function BookingModal({
 
             <div className="space-y-4 py-2">
               {/* Destination info */}
-              <div className="rounded-2xl border border-border/50 overflow-hidden">
+              <div className="rounded-[32px] shadow-sm border-none overflow-hidden">
                 <div className="bg-emerald-600 text-white px-5 py-4">
                   <p className="text-xs text-emerald-200 uppercase tracking-wider font-semibold mb-1">{type === "FLIGHT" ? "Flight Booking" : "Tour Package"}</p>
                   <h3 className="text-xl font-bold">{initialData?.title || initialData?.hotelName || "—"}</h3>
@@ -808,7 +808,7 @@ export default function BookingModal({
               </div>
 
               {/* Price breakdown */}
-              <div className="bg-muted/30 rounded-2xl p-5 space-y-2">
+              <div className="bg-muted/30 rounded-[32px] p-5 space-y-2">
                 <p className="font-semibold text-foreground mb-3">Price Breakdown</p>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Base Fare ({adults} Adult{children > 0 ? ` + ${children} Child` : ""})</span>
@@ -974,7 +974,7 @@ export default function BookingModal({
             </div>
 
             {/* Modern Ticket Visual */}
-            <div className="bg-card p-2 sm:p-4 rounded-3xl overflow-hidden">
+            <div className="bg-card p-2 sm:p-4 rounded-[32px] overflow-hidden">
                <PrintableTicket 
                  ref={receiptRef}
                  data={{
@@ -1021,7 +1021,7 @@ export default function BookingModal({
                      </div>
                   </div>
                   
-                  <div className="bg-card rounded-2xl p-4 flex items-center gap-3 border border-border/50">
+                  <div className="bg-card rounded-[32px] p-4 flex items-center gap-3 border border-border/50">
                      <div className="w-2 h-2 rounded-full bg-emerald-500" />
                      <p className="text-[10px] font-black text-stone-500 uppercase tracking-widest">Your e-ticket is ready for download</p>
                   </div>
